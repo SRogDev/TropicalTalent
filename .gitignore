@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+*.egg-info/
+
+# Environment & secrets — never commit
+.env
+.env.local
+.env.*.local
+.env.production
+*.pem
+*.key
+
+# Tooling / local state
+.vercel
+.husky/_/
+.DS_Store
+*.log
+coverage/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

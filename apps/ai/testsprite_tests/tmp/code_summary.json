@@ -1,0 +1,176 @@
+{
+    "tech_stack": [
+        "Python 3.12",
+        "FastAPI",
+        "Uvicorn",
+        "Gunicorn",
+        "Pydantic",
+        "PostgreSQL (Supabase)",
+        "Supabase Auth",
+        "Google Gemini AI",
+        "Pinecone Vector Database",
+        "NumPy",
+        "Sentry",
+        "Structlog",
+        "Pytest",
+        "Railway/Heroku"
+    ],
+    "features": [
+        {
+            "name": "Profile Vectorization Endpoint",
+            "description": "POST /api/vectorize - Converts user profiles into AI-searchable vector embeddings by analyzing profile text, YouTube videos, images, and PDFs. Uses Google Gemini for content analysis and stores vectors in Pinecone for semantic search. Requires JWT authentication and rate limiting.",
+            "files": [
+                "app/routes/vectorize.py",
+                "app/services/vectorize.py",
+                "app/services/youtube_analyzer.py",
+                "app/services/image_analyzer.py",
+                "app/services/text_processor.py",
+                "app/models/vectorize.py"
+            ]
+        },
+        {
+            "name": "Smart Recommendations Endpoint",
+            "description": "GET /api/recommendations - Provides personalized creative talent recommendations by calculating average vector from user's last 21 searches and performing similarity search in Pinecone. Returns top 7 matches with metadata. Requires JWT authentication and rate limiting.",
+            "files": [
+                "app/routes/recommendations.py",
+                "app/services/recommendations.py",
+                "app/services/search_log_saver.py",
+                "app/models/recommendations.py"
+            ]
+        },
+        {
+            "name": "AI Agent Endpoint",
+            "description": "POST /api/agent - Conversational AI assistant that understands natural language queries and returns talent recommendations via Server-Sent Events (SSE) streaming. Maintains conversation context and provides real-time responses. Requires JWT authentication and rate limiting.",
+            "files": [
+                "app/routes/agent.py",
+                "app/services/agent_service.py",
+                "app/models/agent.py"
+            ]
+        },
+        {
+            "name": "Internal Search Endpoint",
+            "description": "GET /internals/search - Backend search functionality for platform operations. Performs semantic search by enriching queries with AI, generating embeddings, and querying Pinecone. No authentication required (internal use). Includes rate limiting.",
+            "files": [
+                "app/routes/internals/search.py",
+                "app/services/search.py",
+                "app/services/query_enricher.py",
+                "app/services/embedding_service.py",
+                "app/models/search.py"
+            ]
+        },
+        {
+            "name": "Authentication System",
+            "description": "JWT Bearer token authentication using Supabase Auth. Validates tokens on protected endpoints and returns authenticated user data. Implements HTTPBearer security scheme with automatic token validation.",
+            "files": [
+                "app/dependencies/auth.py",
+                "app/core/config.py"
+            ]
+        },
+        {
+            "name": "Rate Limiting",
+            "description": "Request throttling to prevent abuse and ensure fair resource usage. Applied to all endpoints with configurable limits per user/IP.",
+            "files": [
+                "app/dependencies/rate_limiting.py"
+            ]
+        },
+        {
+            "name": "Pinecone Vector Database Integration",
+            "description": "Manages connections to Pinecone vector database for storing and querying profile embeddings. Handles index operations, similarity search, and metadata filtering.",
+            "files": [
+                "app/core/pinecone_client.py"
+            ]
+        },
+        {
+            "name": "Supabase Integration",
+            "description": "Manages interactions with Supabase PostgreSQL database and authentication service. Handles profile data storage, search logs, and user authentication validation.",
+            "files": [
+                "app/core/supabase_service.py",
+                "app/dependencies/auth.py"
+            ]
+        },
+        {
+            "name": "Embedding Generation Service",
+            "description": "Generates vector embeddings using Google Gemini AI. Supports single and batch embedding generation for text content with consistent 768-dimensional vectors.",
+            "files": [
+                "app/services/embedding_service.py"
+            ]
+        },
+        {
+            "name": "YouTube Video Analysis",
+            "description": "Analyzes YouTube video content to extract relevant tags and descriptions for profile vectorization. Uses Google Gemini for video understanding.",
+            "files": [
+                "app/services/youtube_analyzer.py"
+            ]
+        },
+        {
+            "name": "Image Analysis",
+            "description": "Processes uploaded images to extract semantic tags and descriptions. Uses Google Gemini vision capabilities for image understanding.",
+            "files": [
+                "app/services/image_analyzer.py"
+            ]
+        },
+        {
+            "name": "Text Processing",
+            "description": "Processes profile text content (bio, skills, passion) into structured prompts for AI analysis and embedding generation.",
+            "files": [
+                "app/services/text_processor.py"
+            ]
+        },
+        {
+            "name": "Query Enrichment",
+            "description": "Enhances search queries with contextual information using AI before generating embeddings. Improves search relevance by understanding intent.",
+            "files": [
+                "app/services/query_enricher.py"
+            ]
+        },
+        {
+            "name": "Search Log Tracking",
+            "description": "Stores search vectors and metadata in Supabase for recommendations and analytics. Tracks user search history with timestamps and query vectors.",
+            "files": [
+                "app/services/search_log_saver.py"
+            ]
+        },
+        {
+            "name": "Error Tracking and Monitoring",
+            "description": "Sentry integration for error tracking and performance monitoring. Captures exceptions with context and user information across all endpoints.",
+            "files": [
+                "app/core/sentry.py"
+            ]
+        },
+        {
+            "name": "Structured Logging",
+            "description": "Structured logging with Structlog for consistent, machine-readable logs. Includes request IDs, user context, and performance metrics.",
+            "files": [
+                "app/core/logging.py"
+            ]
+        },
+        {
+            "name": "Configuration Management",
+            "description": "Centralized configuration using Pydantic Settings. Manages environment variables, API keys, and service configurations with validation.",
+            "files": [
+                "app/core/config.py"
+            ]
+        },
+        {
+            "name": "CORS Configuration",
+            "description": "Cross-Origin Resource Sharing setup for frontend integration. Configures allowed origins, methods, and headers for API access.",
+            "files": [
+                "app/core/cors.py"
+            ]
+        },
+        {
+            "name": "Health Check Endpoint",
+            "description": "GET /health - Service health monitoring endpoint for uptime checks and deployment verification. No authentication required.",
+            "files": [
+                "app/main.py"
+            ]
+        },
+        {
+            "name": "API Documentation",
+            "description": "Auto-generated Swagger UI and ReDoc documentation available at /docs and /redoc in development mode. Interactive API testing interface.",
+            "files": [
+                "app/main.py"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "TC001",
+    "title": "profile vectorization endpoint authentication and embedding generation",
+    "description": "Test the POST /api/vectorize endpoint to ensure it requires valid JWT authentication, correctly processes profile text, YouTube videos, images, and PDFs, generates embeddings using Google Gemini AI, and stores them in the Pinecone vector database."
+  },
+  {
+    "id": "TC002",
+    "title": "smart recommendations endpoint relevance and authentication",
+    "description": "Test the GET /api/recommendations endpoint to verify it requires JWT authentication, calculates the average vector from the user's last 21 searches, performs similarity search in Pinecone, and returns the top 7 semantically relevant talent matches with correct metadata."
+  },
+  {
+    "id": "TC003",
+    "title": "ai agent endpoint streaming and context maintenance",
+    "description": "Test the POST /api/agent endpoint to ensure it requires JWT authentication, accepts natural language queries, maintains conversational context, and streams real-time talent recommendations via Server-Sent Events without interruption or data inconsistency."
+  },
+  {
+    "id": "TC004",
+    "title": "internal search endpoint functionality and rate limiting",
+    "description": "Test the GET /internals/search endpoint to verify it performs semantic search by enriching queries with AI, generating embeddings, querying Pinecone, does not require authentication, and enforces rate limiting for internal use."
+  },
+  {
+    "id": "TC005",
+    "title": "authentication system jwt validation and user context",
+    "description": "Test the JWT Bearer token authentication system to ensure tokens are validated correctly on protected endpoints, user context is retrieved properly, and unauthorized requests are rejected."
+  },
+  {
+    "id": "TC006",
+    "title": "rate limiting enforcement across endpoints",
+    "description": "Test that rate limiting is applied to all API endpoints, effectively throttling excessive requests per user or IP while allowing normal usage without disruption."
+  },
+  {
+    "id": "TC007",
+    "title": "health check endpoint status response",
+    "description": "Test the GET /health endpoint to verify it responds with the current service status indicating uptime and readiness without requiring authentication."
+  },
+  {
+    "id": "TC008",
+    "title": "api documentation accessibility and accuracy",
+    "description": "Test the /docs and /redoc endpoints in development mode to ensure the auto-generated Swagger UI and ReDoc documentation are accessible, accurate, and allow interactive API testing."
+  }
+]

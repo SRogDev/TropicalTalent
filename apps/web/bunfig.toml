@@ -1,0 +1,10 @@
+[test]
+# Left over from the predecessor app, which ran Jest with a setup file and
+# Playwright alongside it. Neither survived the rebuild: there is no
+# jest.setup.tsx, no jest, and no Playwright in this tree.
+#
+# The stale `preload = ["./jest.setup.tsx"]` meant `npm test` aborted with
+# "preload not found" on every invocation — --passWithNoTests could not save
+# it, because the preload fails before any test is collected. Removed.
+
+include = ["**/*.test.ts", "**/*.test.tsx"]

@@ -1,0 +1,6 @@
+
+# Lint & format only staged files (fast — runs in seconds)
+bun run lint-staged
+
+# Type-check is handled in CI. Run manually before PR:
+#   bunx tsc --noEmit
