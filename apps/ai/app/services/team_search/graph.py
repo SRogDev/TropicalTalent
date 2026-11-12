@@ -22,19 +22,22 @@ Graph structure:
               │       └─────────────────┘
               │
               ▼
-        ┌──────────────┐   mode='update'   ┌──────────────────┐
-        │ route_create │──────────────────►│ persuasion_agent │
-        └──────┬───────┘                   └──────┬───────────┘
-               │ mode='create'                     │
-               ▼                                   │
-        ┌──────────────┐                           │
-        │project_creator│                          │
-        └──────┬────────┘                          │
-               └───────────────────────────────────┘
-                                                   ▼
-                                              ┌─────────┐
-                                              │ complete │
-                                              └─────────┘
+        ┌──────────────┐
+        │ crm_handoff  │  approval → complete, no Supabase writes
+        └──────┬───────┘  (Phase 4: project creation + invitations are
+               │           owned by the Cubora CRM, not this graph)
+               ▼
+          ┌─────────┐
+          │ complete │
+          └─────────┘
+
+Phase 4 (2026-11-12): the `project_creator` and `persuasion_agent`
+nodes are DISABLED and no longer in this graph. They wrote to the
+legacy `projects` / `project_members` / `connections` / `messages`
+tables, which no web migration creates; creating those tables would
+resurrect a second project model nothing in the web reads. The modules
+stay in the tree, marked DISABLED, as history. Approval now ends at
+`crm_handoff` (see its docstring).
 
 Checkpointer:
   Uses Upstash Redis (via UPSTASH_REDIS_URL env var) when available,
@@ -50,15 +53,13 @@ from __future__ import annotations
 
 from typing import Literal
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 
 from app.core.logging import get_logger
 from app.services.team_search.agents.business_agent import business_agent_node
 from app.services.team_search.agents.people_analyst import people_analyst_node
-from app.services.team_search.agents.persuasion_agent import persuasion_agent_node
 from app.services.team_search.agents.search_agent import search_agent_node
-from app.services.team_search.nodes.project_creator import project_creator_node
 from app.services.team_search.state import TeamSearchState
 
 logger = get_logger("team_search.graph")
@@ -91,6 +92,43 @@ async def reviewing_node(state: TeamSearchState) -> dict:  # noqa: ARG001
     return {}
 
 
+async def crm_handoff_node(state: TeamSearchState) -> dict:
+    """Terminal node: an approved team hands off to Cubora operations.
+
+    Phase 4 decision (see docs/architecture/ai-orchestration.md §4):
+    the graph's `project_creator` and `persuasion_agent` nodes are
+    DISABLED — they wrote to the legacy `projects` / `project_members` /
+    `connections` / `messages` tables, which no web migration creates,
+    and creating those tables would resurrect a second project model
+    that nothing in the web reads. The Cubora commercial operation is
+    the negotiation, owned by the Phase 4 CRM (migration 056). This node
+    therefore writes nothing to Supabase: it marks the run complete and
+    tells the user operations will open the commercial operation and
+    contact them through Cubora.
+    """
+    project_name = state.get("project_name", "your project")
+    team = state.get("selected_team", [])
+    logger.info(
+        "Team approved — handing off to Cubora operations",
+        project_name=project_name,
+        team_size=len(team),
+    )
+    return {
+        "status": "complete",
+        "project_id": None,
+        "messages": [
+            AIMessage(
+                content=(
+                    f"Team approved for **{project_name}**. Cubora operations "
+                    "will open the commercial operation for this team and "
+                    "coordinate the next steps with you — no project is "
+                    "created automatically."
+                )
+            )
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Routing helpers
 # ---------------------------------------------------------------------------
@@ -109,11 +147,13 @@ def route_after_agent(
 
 def route_after_review(
     state: TeamSearchState,
-) -> Literal["business_agent", "people_analyst", "project_creator", "persuasion_agent"]:
+) -> Literal["business_agent", "people_analyst", "crm_handoff"]:
     """Route after the reviewing interrupt resumes.
 
     Decision matrix:
-      approval phrase  → project_creator (create) or persuasion_agent (update)
+      approval phrase  → crm_handoff (Phase 4: project creation and
+                         invitations are owned by the Cubora CRM, not
+                         by this graph — see crm_handoff_node)
       analysis request → people_analyst  (returns to reviewing)
       anything else    → business_agent  (swap / adjust team)
     """
@@ -129,8 +169,7 @@ def route_after_review(
 
     # --- Approval ---
     if any(phrase in text for phrase in _APPROVE_PHRASES):
-        mode = state.get("mode", "create")
-        return "persuasion_agent" if mode == "update" else "project_creator"
+        return "crm_handoff"
 
     # --- Analysis request (deep dive / compare) ---
     if any(phrase in text for phrase in _ANALYSE_PHRASES):
@@ -138,12 +177,6 @@ def route_after_review(
 
     # --- Default: route back for team adjustments ---
     return "business_agent"
-
-
-def route_after_project_creator(
-    state: TeamSearchState,
-) -> Literal["persuasion_agent", "__end__"]:
-    return END if state.get("status") == "error" else "persuasion_agent"
 
 
 def route_after_people_analyst(
@@ -206,8 +239,7 @@ def get_team_search_graph():
     builder.add_node("search_agent", search_agent_node)
     builder.add_node("reviewing", reviewing_node)
     builder.add_node("people_analyst", people_analyst_node)
-    builder.add_node("project_creator", project_creator_node)
-    builder.add_node("persuasion_agent", persuasion_agent_node)
+    builder.add_node("crm_handoff", crm_handoff_node)
 
     # Entry
     builder.add_edge(START, "business_agent")
@@ -233,8 +265,7 @@ def get_team_search_graph():
         {
             "business_agent": "business_agent",
             "people_analyst": "people_analyst",
-            "project_creator": "project_creator",
-            "persuasion_agent": "persuasion_agent",
+            "crm_handoff": "crm_handoff",
         },
     )
 
@@ -245,18 +276,8 @@ def get_team_search_graph():
         {"reviewing": "reviewing"},
     )
 
-    # Project Creator → persuasion or error
-    builder.add_conditional_edges(
-        "project_creator",
-        route_after_project_creator,
-        {
-            "persuasion_agent": "persuasion_agent",
-            END: END,
-        },
-    )
-
-    # Persuasion Agent → done
-    builder.add_edge("persuasion_agent", END)
+    # CRM handoff → done (the node itself sets status='complete')
+    builder.add_edge("crm_handoff", END)
 
     _graph = builder.compile(
         checkpointer=checkpointer,

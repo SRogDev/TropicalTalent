@@ -3,18 +3,30 @@
 import json
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
 from supabase import create_client
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.dependencies.auth import get_current_user
 
 logger = get_logger("routes.search_insights")
-settings = get_settings()
 router = APIRouter(prefix="/generate-search-insights", tags=["search"])
-supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
+
+
+def _get_supabase_client():
+    """Create the service-role client lazily, per request.
+
+    A module-level create_client() made this router fail to load whenever
+    the Supabase client could not be constructed at import time (e.g. a
+    sandboxed environment whose httpx cannot parse the proxy no_proxy
+    list), silently dropping the route. Lazy creation keeps the failure
+    local to the request that needs the client.
+    """
+    settings = get_settings()
+    return create_client(settings.supabase_url, settings.supabase_service_role_key)
 
 
 class CreativeTypeInsight(BaseModel):
@@ -42,12 +54,21 @@ def _format_searches(searches: List[Dict[str, Any]]) -> str:
 
 
 @router.get("", response_model=SearchInsightsResponse)
-async def generate_search_insights() -> Dict[str, Any]:
+async def generate_search_insights(
+    current_user: dict = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Generate AI insights from search logs.
+
+    Authenticated: reads user search logs via the service-role key and
+    sends them to Gemini, so it must never be anonymous. There is no
+    admin role concept in the AI backend, so any authenticated user may
+    call it.
 
     First tries rated searches. If none exist (all behavioral_rating = NULL),
     falls back to all searches using results count as supply proxy.
     """
+    settings = get_settings()
+    supabase = _get_supabase_client()
     try:
         # Try rated searches first
         good_searches_resp = (

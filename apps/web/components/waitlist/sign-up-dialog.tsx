@@ -80,7 +80,7 @@ export interface SignUpTenant {
   referrals?: ReferralAudience;
 }
 
-const CLASSIC_TENANT: SignUpTenant = { name: 'TropicalTalent', allowPayer: true };
+const CLASSIC_TENANT: SignUpTenant = { name: 'Cubora', allowPayer: true };
 
 export function SignUpDialog({
   trigger,

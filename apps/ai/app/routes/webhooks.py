@@ -30,14 +30,34 @@ async def _verify_qstash_signature(request: Request, upstash_signature: Optional
 
     QStash signs every delivery with HMAC-SHA256 using the current or next signing key.
     Raises HTTP 401 on failure.
+
+    Fail-closed rule: when no signing keys are configured, unsigned requests
+    are REJECTED — in production always, and in dev too unless the explicit
+    dev-only flag QSTASH_ALLOW_UNSIGNED=true is set (see Settings).
+    The flag never opens production: with SENTRY_ENVIRONMENT=production an
+    unsigned request is rejected even when the flag is set.
     """
     if not upstash_signature:
         logger.warning("QStash webhook called without signature")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Upstash-Signature header")
 
     if not settings.qstash_current_signing_key:
-        # Signing keys not configured — skip in dev/test but block in prod
-        logger.warning("QSTASH_CURRENT_SIGNING_KEY not configured; skipping signature check (dev mode)")
+        # No keys configured — fail closed unless this is explicitly a dev
+        # run that opted into unsigned deliveries.
+        if settings.sentry_environment == "production" or not settings.qstash_allow_unsigned:
+            logger.error(
+                "QStash signing keys not configured; rejecting unsigned webhook "
+                "(set QSTASH_CURRENT_SIGNING_KEY, or QSTASH_ALLOW_UNSIGNED=true "
+                "for local dev only)"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="QStash signing not configured",
+            )
+        logger.warning(
+            "QSTASH_ALLOW_UNSIGNED=true and no signing keys configured; "
+            "accepting unsigned QStash webhook (dev only — never enable in production)"
+        )
         return
 
     try:
@@ -56,8 +76,15 @@ async def _verify_qstash_signature(request: Request, upstash_signature: Optional
             raise ValueError("Signature mismatch")
 
     except ImportError:
-        # qstash SDK not installed — allow in dev without keys
-        logger.warning("qstash Python SDK not installed; signature check skipped")
+        # qstash SDK not installed — without it a configured key cannot be
+        # verified, so fail closed the same way as missing keys.
+        if settings.sentry_environment == "production" or not settings.qstash_allow_unsigned:
+            logger.error("qstash Python SDK not installed; cannot verify signature, rejecting webhook")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="QStash signature verification unavailable",
+            )
+        logger.warning("qstash Python SDK not installed; signature check skipped (QSTASH_ALLOW_UNSIGNED=true, dev only)")
         return
 
     except (ValueError, Exception) as exc:
@@ -93,7 +120,8 @@ async def webhook_vectorize(
     try:
         payload = json.loads(body_bytes)
     except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid JSON: {exc}")
+        logger.warning("QStash webhook received invalid JSON", error=str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON")
 
     user_id: Optional[str] = payload.get("userId")
     if not user_id:
@@ -114,7 +142,8 @@ async def webhook_vectorize(
             location=raw_profile.get("location") or None,
         )
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid profile payload: {exc}")
+        logger.warning("QStash webhook received invalid profile payload", error=str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid profile payload")
 
     vec_request = VectorizeProfileRequest(
         user_id=user_id,
@@ -132,7 +161,7 @@ async def webhook_vectorize(
         # Return 500 → QStash will retry (up to configured retries)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Vectorization failed: {exc}",
+            detail="Vectorization failed",
         )
 
     if result.success:
@@ -149,5 +178,5 @@ async def webhook_vectorize(
     logger.error("QStash vectorization failed (will retry)", user_id=user_id, message=result.message)
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=f"Vectorization failed: {result.message}",
+        detail="Vectorization failed",
     )

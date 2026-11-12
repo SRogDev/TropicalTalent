@@ -8,6 +8,14 @@
  * build rather than shipping.
  */
 
+import createNextIntlPlugin from 'next-intl/plugin';
+
+// next-intl needs this wrapper: it aliases the `next-intl/config` import to
+// ./i18n/request.ts, which is how getTranslations()/getMessages() find the
+// message loader. Without it the build fails at prerender time with
+// "Couldn't find next-intl config file".
+const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
+
 const supabaseHost = (() => {
   try {
     return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').hostname;
@@ -80,4 +88,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

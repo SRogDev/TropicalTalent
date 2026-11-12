@@ -4,11 +4,15 @@ The graph uses this single TypedDict as its shared mutable state.
 Each node reads from and writes to this state dict.
 
 Flow:
-  clarifying → searching → reviewing (interrupt) → creating → inviting → complete
+  clarifying → searching → reviewing (interrupt) → crm_handoff → complete
 
-On 'update' mode (updating an existing project):
-  clarifying → searching → reviewing (interrupt) → inviting → complete
-  (project_creator node is skipped — project already exists)
+Phase 4 (2026-11-12): approval after reviewing no longer creates a
+project or sends invitations. The `project_creator` and
+`persuasion_agent` nodes are disabled (they wrote to legacy `projects` /
+`project_members` / `connections` / `messages` tables no migration
+creates); the graph ends at `crm_handoff` and Cubora operations opens
+the negotiation. The `creating` / `inviting` statuses below are kept
+as literals for history but are no longer emitted.
 """
 
 from __future__ import annotations

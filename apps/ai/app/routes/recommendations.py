@@ -15,7 +15,6 @@ logger = get_logger("tropicaltalent.router.recommendations")
 
 @router.get("/recommendations", response_model=RecommendationsResponse)
 async def recommendations(
-    user_id: str,
     current_user: dict = Depends(get_current_user),
     _rl: None = Depends(rate_limit),
 ) -> RecommendationsResponse:
@@ -24,17 +23,24 @@ async def recommendations(
 
     Returns recommended users based on the user's own profile vector.
     Returns metadata including user_id, username, and avatar for each match.
+
+    The user_id always comes from the verified JWT subject — it is never
+    accepted from the caller (same rule as GET /search).
     """
+    # The identity being recommended for comes from the verified token only.
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
     try:
         logger.info(
             "Recommendations endpoint called",
             user_id=user_id,
             authenticated_user=current_user.get("sub"),
         )
-
-        if not user_id or not user_id.strip():
-            logger.warning("Invalid or missing user_id in recommendations request")
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid user_id")
 
         user_id_clean = user_id.strip()
         logger.debug("Calling get_recommendations service", user_id=user_id_clean)
@@ -58,7 +64,9 @@ async def recommendations(
             error=str(e),
             error_type=type(e).__name__,
         )
-        with sentry_sdk.push_scope() as scope:
+        # sentry_sdk.push_scope was deprecated in SDK 2.x (removed in the
+        # next major); new_scope is its replacement.
+        with sentry_sdk.new_scope() as scope:
             scope.set_extra("endpoint", "recommendations")
             scope.set_extra("user_id", user_id)
             scope.set_extra("authenticated_user", current_user.get("sub"))

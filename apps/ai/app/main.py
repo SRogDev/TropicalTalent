@@ -53,6 +53,10 @@ def create_application() -> FastAPI:
     # Setup CORS
     setup_cors(app)
 
+    # Initialise Sentry only when a DSN is configured (SENTRY_DSN).
+    # With no DSN this is a no-op: no SDK init, no events leave the process.
+    sentry.init_sentry(settings)
+
     # Include application routers
     if api_router is not None:
         app.include_router(api_router)

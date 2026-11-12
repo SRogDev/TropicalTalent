@@ -88,13 +88,13 @@ interface EmailBrand {
   from?: string;
 }
 
-/** TropicalTalent's own branding, and the fallback for anything sent without a request. */
+/** Cubora's own branding, and the fallback for anything sent without a request. */
 const CLASSIC_BRAND: Omit<EmailBrand, 'origin'> = {
-  name: 'TropicalTalent',
-  mark: 'TROPICALTALENT',
+  name: 'Cubora',
+  mark: 'CUBORA',
   cta: '#18181b',
   poweredBy: false,
-  slug: 'tropicaltalent',
+  slug: 'cubora',
 };
 
 /**
@@ -196,7 +196,7 @@ function senderFor(brand: EmailBrand, fallback: string): string {
 
   // Display name only — the address stays the verified one.
   const address = fallback.includes('<') ? fallback.slice(fallback.indexOf('<')) : `<${fallback}>`;
-  return `${brand.name} via TropicalTalent ${address}`;
+  return `${brand.name} via Cubora ${address}`;
 }
 
 /**

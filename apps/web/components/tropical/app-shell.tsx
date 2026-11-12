@@ -1,14 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { Link, usePathname } from '@/i18n/navigation';
 import {
   Briefcase,
   Compass,
   FolderKanban,
+  LayoutGrid,
   LogOut,
   Menu,
+  Package,
   PanelLeftClose,
   PanelLeftOpen,
   ShieldCheck,
@@ -19,6 +21,8 @@ import {
 } from 'lucide-react';
 import { signOutAction } from '@/modules/identity/actions';
 import { ThemeToggleButton } from '@/components/shared/theme-toggle-button';
+import { LocaleSwitcher } from '@/components/shared/locale-switcher';
+import { RoleSwitcher } from './role-switcher';
 import { cn } from '@/lib/utils';
 import type { Viewer } from '@/modules/identity/types';
 import type { Tenant, TenantFeatures } from '@/modules/tenancy/types';
@@ -63,14 +67,19 @@ import { TalentAvatar } from './talent-avatar';
  * from the shell.)
  */
 const HIRING_NAV: NavItem[] = [
-  { href: '/create', label: 'Create', icon: Sparkles },
-  { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/talent', label: 'Talent', icon: Users, feature: 'talentBrowse' },
+  { href: '/create', labelKey: 'create', icon: Sparkles },
+  { href: '/discover', labelKey: 'discover', icon: Compass },
+  { href: '/catalog', labelKey: 'catalog', icon: LayoutGrid },
+  { href: '/operations', labelKey: 'myOperations', icon: FolderKanban },
+  { href: '/projects', labelKey: 'projects', icon: FolderKanban },
+  { href: '/talent', labelKey: 'talent', icon: Users, feature: 'talentBrowse' },
 ];
 
 const WORKING_NAV: NavItem[] = [
-  { href: '/briefs', label: 'Discover briefs', icon: Compass, feature: 'publicBriefs' },
-  { href: '/jobs', label: 'My jobs', icon: Briefcase },
+  { href: '/briefs', labelKey: 'discoverBriefs', icon: Compass, feature: 'publicBriefs' },
+  { href: '/offers', labelKey: 'myOffers', icon: Package },
+  { href: '/operations', labelKey: 'myOperations', icon: FolderKanban },
+  { href: '/jobs', labelKey: 'myJobs', icon: Briefcase },
 ];
 
 /**
@@ -83,14 +92,15 @@ const WORKING_NAV: NavItem[] = [
  * shipping onboarding flow. The layout and every loader beneath it re-check
  * independently, so this only stops the link being offered.
  */
-const ADMIN_NAV: NavItem[] = [{ href: '/admin', label: 'Admin', icon: ShieldCheck }];
+const ADMIN_NAV: NavItem[] = [{ href: '/admin', labelKey: 'admin', icon: ShieldCheck }];
 
 /** Read by the server layout; written here. One year, lax, site-wide. */
 export const SIDEBAR_COOKIE = 'tropical_sidebar';
 
 interface NavItem {
   href: string;
-  label: string;
+  /** Key under the `nav` message namespace — the label is translated at render. */
+  labelKey: string;
   icon: LucideIcon;
   /**
    * The tenant feature this link needs. Absent means unconditional.
@@ -103,7 +113,7 @@ interface NavItem {
 }
 
 function NavLink({
-  item: { href, label, icon: Icon },
+  item: { href, labelKey, icon: Icon },
   pathname,
   collapsed,
 }: {
@@ -111,6 +121,8 @@ function NavLink({
   pathname: string;
   collapsed: boolean;
 }) {
+  const t = useTranslations('nav');
+  const label = t(labelKey);
   const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
@@ -157,6 +169,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const t = useTranslations('nav');
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -203,10 +216,10 @@ export function AppShell({
     items.filter((i) => !('feature' in i) || !i.feature || hasFeature(tenant, i.feature));
 
   const groups = [
-    viewer.canBrand ? { label: 'Hiring', items: allowed(HIRING_NAV) } : null,
-    viewer.isCreative ? { label: 'Working', items: allowed(WORKING_NAV) } : null,
+    viewer.canBrand ? { labelKey: 'hiring', items: allowed(HIRING_NAV) } : null,
+    viewer.isCreative ? { labelKey: 'working', items: allowed(WORKING_NAV) } : null,
   ].filter(
-    (g): g is { label: string; items: typeof HIRING_NAV } => g !== null && g.items.length > 0,
+    (g): g is { labelKey: string; items: typeof HIRING_NAV } => g !== null && g.items.length > 0,
   );
 
   const showGroupLabels = groups.length > 1;
@@ -268,9 +281,9 @@ export function AppShell({
           type='button'
           onClick={toggleCollapsed}
           className='text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground hidden h-9 w-9 shrink-0 place-items-center rounded-lg transition md:grid'
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? t('expandSidebar') : t('collapseSidebar')}
           aria-expanded={!collapsed}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? t('expandSidebar') : t('collapseSidebar')}
         >
           {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         </button>
@@ -279,13 +292,13 @@ export function AppShell({
       <nav className={cn('py-2', collapsed ? 'px-2' : 'px-3')}>
         {groups.map((group, i) => (
           <div
-            key={group.label}
+            key={group.labelKey}
             className={cn('space-y-1', i > 0 && 'mt-4')}
             // Labelled even when the heading is hidden (collapsed rail, or a
             // single-group account) so the grouping survives for a screen
             // reader wherever it is only implied visually.
             role={showGroupLabels ? 'group' : undefined}
-            aria-label={showGroupLabels ? group.label : undefined}
+            aria-label={showGroupLabels ? t(group.labelKey) : undefined}
           >
             {/* Collapsed to a 60px rail there is no room for a text header,
                 and a divider carries the same "these are separate" meaning. */}
@@ -297,7 +310,7 @@ export function AppShell({
                   aria-hidden='true'
                   className='text-muted-foreground/70 px-3 pb-1 text-[10px] tracking-[0.18em] uppercase'
                 >
-                  {group.label}
+                  {t(group.labelKey)}
                 </div>
               ))}
             {group.items.map((item) => (
@@ -314,9 +327,11 @@ export function AppShell({
         </div>
       </nav>
 
+      {!collapsed && <RoleSwitcher canBrand={viewer.canBrand} isCreative={viewer.isCreative} />}
+
       {!collapsed && (
         <div className='text-muted-foreground/70 px-5 pt-4 pb-2 text-[10px] tracking-[0.18em] uppercase'>
-          Projects
+          {t('projects')}
         </div>
       )}
       <ProjectTree projects={projects} collapsed={collapsed} unreadByChannel={unreadByChannel} />
@@ -329,7 +344,7 @@ export function AppShell({
               'hover:bg-foreground/[0.04] flex min-w-0 items-center gap-3 rounded-lg px-2 py-2',
               collapsed ? 'justify-center' : 'flex-1',
             )}
-            title={collapsed ? 'Your profile' : undefined}
+            title={collapsed ? t('yourProfile') : undefined}
           >
             <TalentAvatar candidate={viewer} size={30} />
             {!collapsed && (
@@ -348,6 +363,7 @@ export function AppShell({
           {/* Light/dark lives here rather than only on the landing page: the
               app is where people spend the day, and the toggle out front used
               to stop working the moment they signed in. */}
+          {!collapsed && <LocaleSwitcher />}
           <ThemeToggleButton className='text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground h-9 w-9 shrink-0 rounded-lg' />
 
           {/* Sits adjacent to the profile row, per the brief. A form post so
@@ -355,8 +371,8 @@ export function AppShell({
           <form action={signOutAction}>
             <button
               type='submit'
-              title='Log out'
-              aria-label='Log out'
+              title={t('logout')}
+              aria-label={t('logout')}
               className='text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground grid h-9 w-9 place-items-center rounded-lg transition'
             >
               <LogOut size={15} />
@@ -388,7 +404,7 @@ export function AppShell({
           <div className='fixed inset-0 z-50 md:hidden'>
             <button
               type='button'
-              aria-label='Close menu'
+              aria-label={t('closeMenu')}
               onClick={() => setDrawerOpen(false)}
               className='absolute inset-0 bg-black/60 backdrop-blur-sm'
             />
@@ -396,7 +412,7 @@ export function AppShell({
               <button
                 type='button'
                 onClick={() => setDrawerOpen(false)}
-                aria-label='Close menu'
+                aria-label={t('closeMenu')}
                 className='text-muted-foreground hover:text-foreground absolute top-3 right-3 z-10 grid h-9 w-9 place-items-center rounded-lg'
               >
                 <X size={16} />
@@ -413,7 +429,7 @@ export function AppShell({
             <button
               type='button'
               onClick={() => setDrawerOpen(true)}
-              aria-label='Open menu'
+              aria-label={t('openMenu')}
               className='text-muted-foreground hover:text-foreground grid h-10 w-10 place-items-center rounded-lg'
             >
               <Menu size={18} />

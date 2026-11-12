@@ -38,7 +38,7 @@ import type { SignUpRole } from './use-sign-up-form';
 export function CompleteProfile({
   defaultName,
   hasAvatar,
-  tenant = { name: 'TropicalTalent', allowPayer: true },
+  tenant = { name: 'Cubora', allowPayer: true },
 }: {
   defaultName: string;
   hasAvatar: boolean;

@@ -1,27 +1,31 @@
-"""Agent service: SSE streaming orchestration powered by LangChain AgentExecutor.
+"""Agent service: SSE streaming orchestration (Phase 3 — LangGraph).
 
-This module replaces the previous keyword-heuristic approach with a true
-LangChain agent that autonomously decides when to use tools (search_creatives,
-profile_deep_dive) and when to respond conversationally.
+The turn is orchestrated by the discovery graph
+(`app.services.discovery_graph`): understand -> clarify / search /
+present / sourcing, with the AgentExecutor surviving only inside the
+graph's `legacy_agent` node for greetings, comparisons, and named-
+person turns. This module keeps the responsibilities that are not
+orchestration: conversation lifecycle, memory (buffer + summary +
+entities), SSE formatting, and persistence.
 
-Responsibilities:
-- Conversation lifecycle (create, load, persist)
-- Memory management (buffer + summary + entity context)
-- SSE event formatting and streaming
-- Delegating decisions to the AgentExecutor
+Event contract: see `app.services.discovery_events` and
+docs/architecture/ai-orchestration.md §2 (O12). The service streams
+the graph's events verbatim, except `tool_used`, which is collected
+for persistence and never sent to the client (as before).
 """
 
 from __future__ import annotations
 
-import json
 from typing import AsyncGenerator, List, Optional
+from uuid import uuid4
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 
 from app.core.database import get_supabase_client
 from app.core.logging import get_logger
-from app.models.agent import AgentMessageEvent, AgentRequest
-from app.services.agent_executor import run_agent_streaming
+from app.models.agent import AgentRequest
+from app.services.discovery_events import format_sse
+from app.services.discovery_graph import get_discovery_graph
 from app.services.entity_memory import EntityMemoryManager
 from app.services.memory_manager import AgentMemoryManager
 
@@ -71,9 +75,9 @@ async def stream_agent_response(
     1. Create or load conversation
     2. Load memory (buffer + summary) and entity context
     3. Build LangChain chat_history from memory
-    4. Run AgentExecutor (which autonomously decides tools vs. direct response)
-    5. Stream SSE events (message, profiles, search_log, done)
-    6. Persist messages and update entities
+    4. Run the discovery graph (LangGraph; AgentExecutor only inside
+       its legacy node) and stream its SSE events
+    5. Persist messages and update entities
 
     Args:
         request: Agent request with message and optional conversation_id.
@@ -140,38 +144,88 @@ async def stream_agent_response(
     if memory_mgr:
         memory_mgr.add_user_message(message)
 
-    # ---- 3. Run AgentExecutor and stream SSE events ----
+    # ---- 3. Run the discovery graph and stream its SSE events ----
+    # The checkpointer keys state by thread_id = conversation_id, so a
+    # second turn on the same conversation resumes the graph (same
+    # pattern as Team Search). Without persistence the thread is
+    # ephemeral and state is lost after the turn.
+    graph = get_discovery_graph()
+    thread_id = conversation_id or f"ephemeral-{uuid4()}"
+    config = {"configurable": {"thread_id": thread_id}}
+
+    try:
+        snapshot = graph.get_state(config)
+        graph_started = bool(snapshot and snapshot.values)
+    except Exception:
+        graph_started = False
+
+    if graph_started:
+        # Resume: only the new message; requirements, clarification
+        # count, and offers persist in the checkpoint.
+        input_state = {
+            "messages": [HumanMessage(content=message)],
+            "query": message,
+        }
+    else:
+        input_state = {
+            "messages": [*chat_history, HumanMessage(content=message)],
+            "user_id": user_id,
+            "conversation_id": conversation_id or thread_id,
+            "query": message,
+            "entity_context": entity_context,
+            "requirements": {},
+            "clarification_count": 0,
+            "clarification_questions": [],
+            "offers": [],
+            "partial_offers": [],
+            "sourcing_request": None,
+            "legacy_events": [],
+            "events": [],
+            "reply_text": "",
+            "route": "",
+            "status": "",
+            "error_message": None,
+            "tools_used": [],
+            "search_log_id": None,
+        }
+
     reply_text = ""
     search_log_id: Optional[str] = None
     tools_used: List[str] = []
 
-    async for event in run_agent_streaming(
-        user_id=user_id,
-        message=message,
-        chat_history=chat_history,
-        entity_context=entity_context,
-    ):
-        event_type = event["type"]
-        content = event["content"]
+    try:
+        final_state = await graph.ainvoke(input_state, config=config)
+        events = final_state.get("events") or []
+        reply_text = final_state.get("reply_text") or ""
+        search_log_id = final_state.get("search_log_id")
+        tools_used = list(final_state.get("tools_used") or [])
+    except Exception as e:
+        logger.error("Discovery graph failed", error=str(e), user_id=user_id)
+        events = [
+            {
+                "type": "message",
+                "content": "I'm sorry, something went wrong. Could you try rephrasing your request?",
+            },
+            {"type": "done", "content": "end"},
+        ]
+        reply_text = events[0]["content"]
 
-        if event_type == "message":
-            reply_text += content
-            sse_event = AgentMessageEvent(type="message", content=content)
-            yield f"data: {json.dumps(sse_event.model_dump())}\n\n"
+    # First event: the conversation id, so the client can resume this
+    # thread on the next turn (same pattern as Team Search).
+    if conversation_id:
+        yield format_sse(
+            {"type": "conversation_id", "content": conversation_id}
+        )
 
-        elif event_type == "search_log":
-            search_log_id = content.get("log_id")
-            logger.info("Emitting search_log SSE event", log_id=search_log_id)
-            yield f"data: {json.dumps({'type': 'search_log', 'content': content})}\n\n"
-
-        elif event_type == "profiles":
-            yield f"data: {json.dumps({'type': 'profiles', 'content': content})}\n\n"
-
-        elif event_type == "tool_used":
-            tools_used.append(content)
-
-        elif event_type == "done":
-            pass  # Handled below
+    for event in events:
+        event_type = event.get("type")
+        if event_type == "tool_used":
+            # Collected for persistence, never streamed (as before).
+            tools_used.append(event.get("content"))
+            continue
+        if event_type == "search_log":
+            search_log_id = (event.get("content") or {}).get("log_id")
+        yield format_sse(event)
 
     # ---- 4. Persist messages + update entities ----
     if memory_mgr:
@@ -208,4 +262,8 @@ async def stream_agent_response(
             logger.warning("Entity extraction failed", error=str(e))
 
     # ---- 5. Final done event ----
-    yield f"data: {json.dumps({'type': 'done', 'content': 'end'})}\n\n"
+    # The graph's event list already ends with done; emit it only if the
+    # graph produced no events at all (defensive — the client must never
+    # hang on an unterminated stream).
+    if not events:
+        yield format_sse({"type": "done", "content": "end"})

@@ -171,8 +171,16 @@ UPSTASH_REDIS_URL=<your-upstash-redis-url>
 # Optional — QStash webhook signing keys (for /api/webhooks/vectorize)
 QSTASH_CURRENT_SIGNING_KEY=<your-qstash-current-signing-key>
 QSTASH_NEXT_SIGNING_KEY=<your-qstash-next-signing-key>
+# DEV ONLY — QSTASH_ALLOW_UNSIGNED=true accepts unsigned webhook deliveries
+# when no signing keys are configured. Never enable in production (it is
+# ignored when SENTRY_ENVIRONMENT=production); without keys and without this
+# flag, unsigned requests are rejected everywhere.
+QSTASH_ALLOW_UNSIGNED=false
 
 # Optional — Sentry error tracking
+# Leave SENTRY_DSN empty to disable Sentry entirely (local/dev default:
+# no DSN -> the SDK is never initialised, so no event can leave the process).
+# SENTRY_ENVIRONMENT defaults to "development"; set it explicitly per deploy.
 SENTRY_DSN=<your-sentry-dsn>
 SENTRY_ENVIRONMENT=development
 SENTRY_TRACES_SAMPLE_RATE=0.1
@@ -322,6 +330,7 @@ uv run pytest --cov=app --cov-report=html
 | `UPSTASH_REDIS_URL` | No | - | Upstash Redis URL (rate limiting, caches, LangGraph state) |
 | `QSTASH_CURRENT_SIGNING_KEY` | No | - | QStash signing key for `/api/webhooks/vectorize` |
 | `QSTASH_NEXT_SIGNING_KEY` | No | - | QStash next signing key (rotation) |
+| `QSTASH_ALLOW_UNSIGNED` | No | `false` | **DEV ONLY.** When `true` AND no signing keys are configured, `/api/webhooks/vectorize` accepts unsigned deliveries (local dev without a QStash project). Ignored when `SENTRY_ENVIRONMENT=production` — unsigned requests are always rejected there. Without keys and without this flag, unsigned requests are rejected everywhere. Never enable in a deployed environment. |
 | `SENTRY_DSN` | No | - | Sentry DSN for error tracking |
 | `SENTRY_ENVIRONMENT` | No | `development` | Sentry environment name |
 | `SENTRY_TRACES_SAMPLE_RATE` | No | `0.1` | Sentry performance monitoring sample rate |

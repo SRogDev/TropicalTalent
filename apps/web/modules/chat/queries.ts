@@ -12,10 +12,18 @@ import { EMPTY_TERMS } from './types';
  * Channel, message, deliverable and contract reads.
  *
  * Access control lives entirely in RLS. The bot channel ("Project Admin") is
- * brand-only, the group channel stays locked until escrow is funded, and a DM
- * is visible only to the brand and the talent holding that role. Nothing
- * here re-implements those checks — a query that returns no rows is the
- * enforcement working.
+ * brand-only, the group channel opens when the project is active or
+ * completed, and a DM is visible only to the brand and the talent holding
+ * that role. Nothing here re-implements those checks — a query that returns
+ * no rows is the enforcement working.
+ *
+ * Phase 4: a project becomes active when Cubora operations activates it
+ * for an accepted negotiation (migration 056, activateProjectAction) —
+ * NOT when escrow is funded. Escrow funding is stubbed to always refuse
+ * in this reference build, so the old "locked until escrow is funded"
+ * reading of the group channel could never unlock (audit §4.1); the
+ * channel rule itself (status active/completed) is unchanged, the
+ * transition that satisfies it is now the operations decision.
  */
 
 export const MESSAGES_PAGE_SIZE = 60;

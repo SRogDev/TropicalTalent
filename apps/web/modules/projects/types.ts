@@ -126,6 +126,13 @@ export interface ProjectTreeNode {
  * Escrow is "paid" once the money has actually landed. Everything that locks
  * after payment — contract editing, member removal, project deletion — keys
  * off this one predicate so the rules cannot drift apart.
+ *
+ * Phase 4: in this reference build escrow funding is stubbed to always
+ * refuse, so the status arm is the one that can actually make this true:
+ * a project becomes 'active' when Cubora operations activates it for an
+ * accepted negotiation (migration 056, activateProjectAction). The
+ * predicate is unchanged; the transition that satisfies it is now the
+ * Cubora operations decision, not a payment event.
  */
 export function isEscrowPaid(project: {
   status: ProjectStatus;

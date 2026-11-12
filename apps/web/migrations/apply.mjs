@@ -78,6 +78,10 @@ if (!failed) {
   const checks = [
     ['tropical tables created', `SELECT count(*)::int AS n FROM information_schema.tables
        WHERE table_schema = 'public' AND table_name LIKE 'tropical\\_%'`],
+    ['ai-service tables created', `SELECT count(*)::int AS n FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name IN ('agent_conversations', 'agent_messages',
+         'agent_conversation_entities', 'search_logs', 'feedback_messages',
+         'opportunities', 'matching_results')`],
     ['disciplines seeded', `SELECT count(*)::int AS n FROM public.tropical_disciplines`],
     // Archived out of `public` by 039 — it was 003 seed data read only by the
     // 004 backfill, and 039 runs before this block, so `archive` is where it
@@ -103,12 +107,26 @@ if (!failed) {
     const { rows } = await client.query(q);
     console.log(`  ${label}: ${rows[0].n}`);
   }
-  // 17 = 16 tropical_ tables + the tropical_public_briefs view, which
-  // information_schema.tables counts but pg_tables does not.
+  // 20 = 19 tropical_ tables + the tropical_public_briefs view, which
+  // information_schema.tables counts but pg_tables does not. The 19 are the
+  // 16 from Phase 0 + tropical_providers, tropical_verification_events and
+  // tropical_offers (051/052). The 7 AI-service tables (053) are not
+  // tropical_-prefixed and are counted by their own check above.
+  // Disciplines: 33 (003) + 12 (037) + 22 (054) = 67. RLS/policies grow
+  // with the 3 new tropical tables (051 adds 4 policies, 052 adds 4).
+  // Functions: the 2 verification-guard triggers (051/052); the
+  // agent-conversation timestamp function (053) is not tropical_-prefixed
+  // and is not counted by the functions check.
+  // 056 (Phase 4) adds 7 tropical tables (negotiations,
+  // negotiation_messages, proposals, contact_releases, fees,
+  // compliance_reviews, operation_events), 10 policies, and 2 guard
+  // functions (negotiations + proposals); the restated
+  // tropical_can_access_channel was already counted. New expected totals:
+  // 27 tables (26 + 1 view), 26 rls, 47 policies, 8 functions.
   console.log(
-    '\nExpected: 17 tables (16 + 1 view), 33 disciplines, 61 tag rows,' +
-      '\n          28 creatives, 45 wallets, 16 rls, 29 policies,' +
-      '\n          3 realtime, 4 functions.',
+    '\nExpected: 27 tables (26 + 1 view), 7 ai-service tables, 67 disciplines, 61 tag rows,' +
+      '\n          28 creatives, 45 wallets, 26 rls, 47 policies,' +
+      '\n          3 realtime, 8 functions.',
   );
 }
 

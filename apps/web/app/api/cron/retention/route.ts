@@ -39,9 +39,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (error) {
     // Logged as well as returned. A retention job that has been failing
     // quietly for six months is indistinguishable from one that never ran, and
-    // the cron dashboard only shows the status code.
+    // the cron dashboard only shows the status code. The response itself
+    // stays generic: the database error is for the server log, not the
+    // caller.
     console.error('retention: tropical_run_retention failed:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Retention run failed.' }, { status: 500 });
   }
 
   const results = (data ?? []) as Array<{ target: string; removed: number }>;

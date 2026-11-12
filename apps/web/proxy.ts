@@ -1,6 +1,13 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import {
+  LOCALE_COOKIE,
+  resolveLocale,
+  stripLocalePrefix,
+  withLocale,
+  type Locale,
+} from '@/lib/i18n';
 
 /**
  * Edge gateway. Routing only.
@@ -62,7 +69,7 @@ const PUBLIC_PATHS = ['/', '/terms', '/privacy-policy', '/sub-processors', '/uns
 const PUBLIC_API = ['/api/waitlist', '/api/cron/'];
 
 /**
- * Hosts that serve the classic TropicalTalent app, including its marketing page.
+ * Hosts that serve the classic Cubora app, including its marketing page.
  *
  * Everything NOT on this list is a white-label hostname, and `/` there is
  * redirected to sign-in — see platformHost() below.
@@ -101,11 +108,11 @@ const REFRESH_MARGIN_SECONDS = 120;
  * Is this host the classic app rather than a white-label?
  *
  * The apex comes from NEXT_PUBLIC_APP_URL / NEXT_PUBLIC_SITE_URL — whatever
- * TropicalTalent itself is served on — plus local and preview hosts. Anything else got
+ * Cubora itself is served on — plus local and preview hosts. Anything else got
  * here through a tropical_tenant_domains row, which only a white-label has.
  *
  * Fails toward CLASSIC: an unparseable configuration means every host is
- * treated as the platform, which shows TropicalTalent's own landing page to a
+ * treated as the platform, which shows Cubora's own landing page to a
  * white-label's visitor. That is a cosmetic wrong answer. The opposite default
  * would redirect the real marketing site to a login form.
  */
@@ -168,22 +175,39 @@ function first(value: string | null): string {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // A white-label's root is its front door, not TropicalTalent's shop window.
+  // Locale handling (Phase 1, next-intl).
+  //
+  // Every page lives under /[locale]/, so `bare` is the path the existing
+  // checks below were written against and `locale` is the segment they
+  // redirect to. `locale` comes from the URL prefix when present, otherwise
+  // from the NEXT_LOCALE cookie and then Accept-Language.
+  //
+  // Paths that live OUTSIDE the locale segment — /api/* and the root
+  // /unsubscribe handler — never get a prefix; everything else bare is
+  // redirected to its locale-prefixed form, preserving the query string.
+  const { locale: prefixLocale, path: bare } = stripLocalePrefix(pathname);
+  const locale: Locale =
+    prefixLocale ??
+    resolveLocale({
+      cookieLocale: request.cookies.get(LOCALE_COOKIE)?.value,
+      acceptLanguage: request.headers.get('accept-language'),
+    });
+
+  // A white-label's root is its front door, not Cubora's shop window.
   //
   // The customer puts this hostname on their own website, so a visitor landing
-  // on `/` is one of their people trying to sign in. Serving them TropicalTalent's
-  // marketing page — "Connecting brands with tailored freelance teams", a TropicalTalent
-  // logo and a TropicalTalent sign-up — is the single most visible way a white-label
+  // on `/` is one of their people trying to sign in. Serving them Cubora's
+  // marketing page — a Cubora logo and a Cubora sign-up — is the single most visible way a white-label
   // stops looking like the customer's own product.
   //
-  // Handled here rather than in app/page.tsx because that page is
+  // Handled here rather than in app/[locale]/page.tsx because that page is
   // `force-static`: it never reads the request, which is what keeps the real
   // marketing site fast. This costs one string comparison and no query.
-  if (pathname === '/' && !platformHost(request.headers.get('host') ?? '')) {
+  if (bare === '/' && !platformHost(request.headers.get('host') ?? '')) {
     // selfUrl(), so the tenant's hostname survives the redirect. The search
     // string is carried over deliberately: a ?ref= share link lands on `/` and
     // the sign-up dialog on the other side reads the code out of the URL.
-    const url = selfUrl(request, '/auth/sign-in');
+    const url = selfUrl(request, withLocale('/auth/sign-in', locale));
     url.search = request.nextUrl.search;
     return NextResponse.redirect(url);
   }
@@ -191,10 +215,27 @@ export async function proxy(request: NextRequest) {
   // A Supabase auth code can land on any path if the dashboard's Site URL is
   // misconfigured. Funnel it to the callback rather than 404ing the user.
   const code = request.nextUrl.searchParams.get('code');
-  if (code && !pathname.startsWith('/auth/callback')) {
-    const url = selfUrl(request, '/auth/callback');
+  if (code && bare !== '/auth/callback') {
+    const url = selfUrl(request, withLocale('/auth/callback', locale));
     url.search = request.nextUrl.search;
     return NextResponse.redirect(url);
+  }
+
+  // Bare page paths redirect to their locale-prefixed form. API routes and
+  // the root unsubscribe handler live outside the locale segment and are
+  // exempt. The cookie records the choice so the next bare visit resolves
+  // the same way without re-reading Accept-Language.
+  const LOCALELESS = ['/api/', '/unsubscribe'];
+  if (!prefixLocale && !LOCALELESS.some((p) => bare === p || bare.startsWith(p))) {
+    const url = selfUrl(request, withLocale(bare, locale));
+    url.search = request.nextUrl.search;
+    const response = NextResponse.redirect(url);
+    response.cookies.set(LOCALE_COOKIE, locale, {
+      path: '/',
+      maxAge: 31536000,
+      sameSite: 'lax',
+    });
+    return response;
   }
 
   const session = readSessionFromCookies(request);
@@ -207,8 +248,8 @@ export async function proxy(request: NextRequest) {
 
   const signedIn = session.present && !session.expiresWithin(0);
 
-  if (pathname.startsWith('/api/')) {
-    if (PUBLIC_API.some((p) => pathname.startsWith(p))) return NextResponse.next();
+  if (bare.startsWith('/api/')) {
+    if (PUBLIC_API.some((p) => bare.startsWith(p))) return NextResponse.next();
     if (!signedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     return NextResponse.next();
   }
@@ -227,23 +268,19 @@ export async function proxy(request: NextRequest) {
   // sends them to the app, app sees an incomplete profile and sends them back.
   // /auth/update-password is exempt for the same reason: the reset link signs
   // the user in and then needs the form.
-  if (
-    signedIn &&
-    pathname.startsWith('/auth/') &&
-    !AUTHED_AUTH_PATHS.some((p) => pathname.startsWith(p))
-  ) {
-    const url = selfUrl(request, '/auth/continue');
+  if (signedIn && bare.startsWith('/auth/') && !AUTHED_AUTH_PATHS.some((p) => bare.startsWith(p))) {
+    const url = selfUrl(request, withLocale('/auth/continue', locale));
     // A deep link that bounced through sign-in keeps its destination.
     const wanted = request.nextUrl.searchParams.get('next');
     if (wanted) url.searchParams.set('next', wanted);
     return NextResponse.redirect(url);
   }
 
-  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/auth/');
+  const isPublic = PUBLIC_PATHS.includes(bare) || bare.startsWith('/auth/');
 
   if (!isPublic && !signedIn) {
-    const url = selfUrl(request, '/auth/sign-in');
-    url.searchParams.set('next', pathname + request.nextUrl.search);
+    const url = selfUrl(request, withLocale('/auth/sign-in', locale));
+    url.searchParams.set('next', withLocale(bare, locale) + request.nextUrl.search);
     return NextResponse.redirect(url);
   }
 
@@ -279,17 +316,26 @@ async function refreshAndContinue(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
+  // Same locale split as proxy(): the checks below read the bare path and
+  // the redirects carry the locale prefix.
+  const { locale: prefixLocale, path: bare } = stripLocalePrefix(pathname);
+  const locale: Locale =
+    prefixLocale ??
+    resolveLocale({
+      cookieLocale: request.cookies.get(LOCALE_COOKIE)?.value,
+      acceptLanguage: request.headers.get('accept-language'),
+    });
   const isPublic =
-    PUBLIC_PATHS.includes(pathname) ||
-    pathname.startsWith('/auth/') ||
-    PUBLIC_API.some((p) => pathname.startsWith(p));
+    PUBLIC_PATHS.includes(bare) ||
+    bare.startsWith('/auth/') ||
+    PUBLIC_API.some((p) => bare.startsWith(p));
 
   if (!user && !isPublic) {
-    if (pathname.startsWith('/api/')) {
+    if (bare.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const url = selfUrl(request, '/auth/sign-in');
-    url.searchParams.set('next', pathname + request.nextUrl.search);
+    const url = selfUrl(request, withLocale('/auth/sign-in', locale));
+    url.searchParams.set('next', withLocale(bare, locale) + request.nextUrl.search);
     return NextResponse.redirect(url);
   }
 
@@ -297,12 +343,8 @@ async function refreshAndContinue(request: NextRequest) {
   // lands here instead. The refreshed cookies are copied onto the redirect:
   // dropping them would throw away a rotated refresh token and sign the user
   // out on the very navigation that was meant to keep them in.
-  if (
-    user &&
-    pathname.startsWith('/auth/') &&
-    !AUTHED_AUTH_PATHS.some((p) => pathname.startsWith(p))
-  ) {
-    const url = selfUrl(request, '/auth/continue');
+  if (user && bare.startsWith('/auth/') && !AUTHED_AUTH_PATHS.some((p) => bare.startsWith(p))) {
+    const url = selfUrl(request, withLocale('/auth/continue', locale));
     const wanted = request.nextUrl.searchParams.get('next');
     if (wanted) url.searchParams.set('next', wanted);
 

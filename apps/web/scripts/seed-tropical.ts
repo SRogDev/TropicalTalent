@@ -16,6 +16,12 @@
  * the marker were somehow attached to one. Deleting the auth user cascades to
  * public.users and everything keyed off it.
  *
+ * CUBORA (Phase 2): creative fixtures also get a `tropical_providers` row and
+ * draft `tropical_offers` — invented names, invented supply, verification
+ * status `pending`. Drafts never appear in the public catalog; publish one
+ * from /offers to exercise the catalog. Nothing here is real supply,
+ * availability, or verification.
+ *
  * Requires SUPABASE_SERVICE_ROLE_KEY. Intended for development databases —
  * it will happily run against production, so check which project .env.local
  * points at before using --teardown.
@@ -63,6 +69,30 @@ interface Fixture {
   bio: string;
   disciplines: string[];
   tags: string[];
+  /** Cubora provider profile (Phase 2). Fictitious, verification pending. */
+  provider?: {
+    kind: 'individual' | 'business';
+    displayName: string;
+    description: string;
+    city: string;
+    languages: string[];
+  };
+  /** Draft offers for the provider above. Never published by the seed. */
+  offers?: Array<{
+    category: 'talent' | 'services' | 'products';
+    title: string;
+    description: string;
+    skills: string[];
+    city: string;
+    availability: 'available' | 'limited' | 'unavailable';
+    quantityAvailable?: number;
+    quantityUnit?: string;
+    productionCapacity?: Record<string, unknown>;
+    pricingBasis: 'hour' | 'project' | 'unit' | 'quote';
+    priceAmount?: number;
+    originCountry?: string;
+    attributes?: Record<string, unknown>;
+  }>;
 }
 
 /**
@@ -85,6 +115,31 @@ const FIXTURES: Fixture[] = [
     bio: 'Vocalist and songwriter. Test fixture.',
     disciplines: ['singer', 'songwriter'],
     tags: ['singer', 'songwriter'],
+    provider: {
+      kind: 'individual',
+      displayName: 'Ada Vale',
+      description: 'Fictitious vocalist for development testing.',
+      city: 'Havana',
+      languages: ['es', 'en'],
+    },
+    offers: [
+      {
+        category: 'talent',
+        title: 'Fictitious session vocalist',
+        description: 'Invented talent fixture for development testing only.',
+        skills: ['singer', 'songwriter'],
+        city: 'Havana',
+        availability: 'available',
+        pricingBasis: 'hour',
+        priceAmount: 40,
+        originCountry: 'Cuba',
+        attributes: {
+          years_experience: 6,
+          portfolio_urls: ['https://example.invalid/ada-vale'],
+          availability: 'Weekdays, Havana time.',
+        },
+      },
+    ],
   },
   {
     handle: 'seed_shooter',
@@ -101,6 +156,70 @@ const FIXTURES: Fixture[] = [
     bio: 'Producer and event designer. Test fixture.',
     disciplines: ['producer', 'event-designer', 'event-manager'],
     tags: ['producer', 'event designer'],
+    provider: {
+      kind: 'individual',
+      displayName: 'Juno Pike — Production',
+      description: 'Fictitious production coordinator for development testing.',
+      city: 'Havana',
+      languages: ['es', 'en'],
+    },
+    offers: [
+      {
+        category: 'services',
+        title: 'Fictitious event production coordination',
+        description: 'Invented service fixture for development testing only.',
+        skills: ['event-manager', 'producer'],
+        city: 'Havana',
+        availability: 'limited',
+        pricingBasis: 'project',
+        priceAmount: 1200,
+        originCountry: 'Cuba',
+        attributes: {
+          scope: 'Coordination of a small fictitious event.',
+          deliverables: ['Run sheet', 'Vendor list'],
+          conditions: 'Remote planning; on-site in Havana only.',
+        },
+      },
+    ],
+  },
+  {
+    handle: 'seed_coffee',
+    name: 'Aurora Coffee Co',
+    role: 'creative',
+    bio: 'Fictitious coffee producer for development testing.',
+    disciplines: ['agricultural-producer'],
+    tags: ['coffee', 'producer'],
+    provider: {
+      kind: 'business',
+      displayName: 'Aurora Coffee Co (fictitious)',
+      description: 'Invented coffee producer for development testing only.',
+      city: 'Santiago de Cuba',
+      languages: ['es', 'en'],
+    },
+    offers: [
+      {
+        category: 'products',
+        title: 'Fictitious washed arabica coffee',
+        description: 'Invented product fixture for development testing only.',
+        skills: [],
+        city: 'Santiago de Cuba',
+        availability: 'limited',
+        quantityAvailable: 500,
+        quantityUnit: 'kg',
+        productionCapacity: { monthly_amount: 500, unit: 'kg', lead_time_days: 14 },
+        pricingBasis: 'unit',
+        priceAmount: 8.5,
+        originCountry: 'Cuba',
+        attributes: {
+          origin: 'Santiago de Cuba (invented)',
+          quality: 'Invented grade — not a real claim.',
+          quantity: '500 kg',
+          availability: 'Harvest season (invented)',
+          products: ['Washed arabica'],
+          documentation: ['Origin certificate (invented)'],
+        },
+      },
+    ],
   },
 ];
 
@@ -210,6 +329,60 @@ async function seed() {
           type: 'hospitality',
         });
         if (error) console.error(`     brand_data: ${error.message}`);
+      }
+    }
+
+    // Cubora provider profile + draft offers (Phase 2). Drafts only:
+    // nothing seeded here is published, verified, or sealed.
+    if (fixture.provider) {
+      const { data: providerRow, error: providerError } = await admin
+        .from('tropical_providers')
+        .upsert(
+          {
+            user_id: userId,
+            kind: fixture.provider.kind,
+            display_name: fixture.provider.displayName,
+            description: fixture.provider.description,
+            city: fixture.provider.city,
+            country: 'Cuba',
+            languages: fixture.provider.languages,
+          },
+          { onConflict: 'user_id' },
+        )
+        .select('id')
+        .single();
+      if (providerError || !providerRow) {
+        console.error(`     provider: ${providerError?.message}`);
+      } else if (fixture.offers?.length) {
+        const { data: existingOffers } = await admin
+          .from('tropical_offers')
+          .select('title')
+          .eq('provider_id', providerRow.id);
+        const existingTitles = new Set((existingOffers ?? []).map((o) => o.title as string));
+        for (const offer of fixture.offers) {
+          if (existingTitles.has(offer.title)) continue;
+          const { error } = await admin.from('tropical_offers').insert({
+            provider_id: providerRow.id,
+            category: offer.category,
+            status: 'draft',
+            title: offer.title,
+            description: offer.description,
+            skills: offer.skills,
+            languages: fixture.provider.languages,
+            city: offer.city,
+            country: 'Cuba',
+            availability_status: offer.availability,
+            quantity_available: offer.quantityAvailable ?? null,
+            quantity_unit: offer.quantityUnit ?? null,
+            production_capacity: offer.productionCapacity ?? null,
+            pricing_basis: offer.pricingBasis,
+            price_amount: offer.priceAmount ?? null,
+            price_currency: 'USD',
+            origin_country: offer.originCountry ?? null,
+            attributes: offer.attributes ?? {},
+          });
+          if (error) console.error(`     offer ${offer.title}: ${error.message}`);
+        }
       }
     }
 

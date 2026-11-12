@@ -4,6 +4,7 @@ import sentry_sdk
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core import get_logger
+from app.dependencies.auth import get_current_user
 from app.dependencies.rate_limiting import rate_limit
 from app.models.search import SearchRequest, SearchResponse
 from app.services.search import search_users
@@ -14,22 +15,32 @@ logger = get_logger("tropicaltalent.router.search")
 
 @router.get("/search", response_model=SearchResponse)
 async def search(
-    user_id: str, query: str, _rl: None = Depends(rate_limit)
+    query: str,
+    current_user: dict = Depends(get_current_user),
+    _rl: None = Depends(rate_limit),
 ) -> SearchResponse:
     """
     Semantic user search.
 
     Searches for users similar to the query using Google embeddings.
     Returns metadata including user_id, username, and avatar for each match.
+
+    Authenticated: the searched-as user_id always comes from the verified
+    JWT subject — it is never accepted from the caller, so one user cannot
+    search (or leave search logs) as another.
     """
+    # The identity being searched as comes from the verified token only.
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
     try:
         logger.info("Search endpoint called", user_id=user_id, query_length=len(query) if query else 0)
 
         # Validate parameters
-        if not user_id or not user_id.strip():
-            logger.warning("Invalid or missing user_id in search request")
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid user_id")
-
         if not query or not query.strip():
             logger.warning("Invalid or missing query in search request", user_id=user_id)
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Query is required")
@@ -68,7 +79,9 @@ async def search(
             error=str(e),
             error_type=type(e).__name__,
         )
-        with sentry_sdk.push_scope() as scope:
+        # sentry_sdk.push_scope was deprecated in SDK 2.x (removed in the
+        # next major); new_scope is its replacement.
+        with sentry_sdk.new_scope() as scope:
             scope.set_extra("endpoint", "search")
             scope.set_extra("user_id", user_id)
             scope.set_extra("query_length", len(query) if query else 0)

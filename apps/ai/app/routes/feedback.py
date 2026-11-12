@@ -1,15 +1,16 @@
 """Feedback insights endpoint - generates AI insights from user feedback."""
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
 from supabase import create_client
 
 from app.core import get_logger, get_settings
+from app.dependencies.auth import get_current_user
 
 logger = get_logger("feedback")
 router = APIRouter(prefix="/generate-feedback-insights", tags=["feedback"])
@@ -23,9 +24,15 @@ class FeedbackInsight(BaseModel):
 
 
 @router.get("", response_model=FeedbackInsight)
-async def generate_feedback_insights() -> Dict[str, Any]:
+async def generate_feedback_insights(
+    current_user: dict = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Generate AI insights from feedback of the last 24 hours.
+
+    Authenticated: reads user feedback via the service-role key and sends
+    it to Gemini, so it must never be anonymous. There is no admin role
+    concept in the AI backend, so any authenticated user may call it.
 
     Returns:
         Dict with summary and suggested actions
@@ -34,7 +41,7 @@ async def generate_feedback_insights() -> Dict[str, Any]:
         settings = get_settings()
         supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
 
-        twenty_four_hours_ago = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+        twenty_four_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 
         response = (
             supabase.table("feedback_messages")
@@ -123,8 +130,10 @@ Keep your response professional, actionable, and focused on improving the user e
             detail="Failed to parse AI insights",
         )
     except Exception as e:
+        # Log the detail server-side; the client only gets a generic message
+        # (the previous detail=str(e) leaked Supabase/Gemini internals).
         logger.error(f"Error generating feedback insights: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
+            detail="Failed to generate feedback insights",
         )

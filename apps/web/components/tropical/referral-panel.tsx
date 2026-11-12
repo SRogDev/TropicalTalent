@@ -76,8 +76,8 @@ export function ReferralPanel({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'TropicalTalent',
-          text: `Join me on TropicalTalent - use my code ${code}`,
+          title: 'Cubora',
+          text: `Join me on Cubora - use my code ${code}`,
           url: link,
         });
         return;

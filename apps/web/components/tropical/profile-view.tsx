@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { Link } from '@/i18n/navigation';
 import {
   BadgeCheck,
   Briefcase,
@@ -77,6 +78,7 @@ export function ProfileView({
   referrals,
   emailEnabled,
   workspaces,
+  offerCount,
 }: {
   data: CreativeProfile;
   disciplines: Discipline[];
@@ -87,6 +89,8 @@ export function ProfileView({
   emailEnabled: EmailPreferences | null;
   /** Null on someone else's profile. */
   workspaces?: MyWorkspace[] | null;
+  /** Own offers in the unified catalog (Phase 2). Null on someone else's profile. */
+  offerCount?: number | null;
 }) {
   const tenantName = useTenantName();
   const router = useRouter();
@@ -309,6 +313,25 @@ export function ProfileView({
         <p className='text-muted-foreground mt-5 flex items-center gap-1.5 text-sm'>
           <MapPin size={13} /> {data.locationDisplay}
         </p>
+      )}
+
+      {/* ---- My offers (Phase 2) ---- */}
+      {/* Own profile only: the count and the link go to /offers, where the
+          provider profile and the offers live. A visitor sees the talent
+          profile, not the offer management surface. */}
+      {isOwnProfile && offerCount !== null && offerCount !== undefined && (
+        <div className='mt-5 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm'>
+          <span>
+            <span className='font-medium'>My offers</span>
+            <span className='text-muted-foreground'>
+              {' '}
+              · {offerCount} {offerCount === 1 ? 'offer' : 'offers'} in the catalog
+            </span>
+          </span>
+          <Link href='/offers' className='text-primary shrink-0 font-medium hover:underline'>
+            Manage offers →
+          </Link>
+        </div>
       )}
 
       {/* ---- bio ---- */}

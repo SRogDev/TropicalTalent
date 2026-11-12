@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Building2,
   Camera,
@@ -110,7 +111,7 @@ export function CredentialsStep({
 /**
  * The two sides of the marketplace, in the words of whichever site is asking.
  *
- * "Talent" and "Brand" are TropicalTalent's names for them. A contractor white-label
+ * "Talent" and "Brand" are Cubora's names for them. A contractor white-label
  * calls the same two things "Contractor" and "Company", and the labels are
  * already recorded per archetype in modules/tenancy/presets.ts — this reads
  * them rather than inventing a second copy. `workerLabel`/`payerLabel` default
@@ -140,7 +141,6 @@ const ROLE_META: Record<
 export function RoleStep({
   value,
   onChange,
-  tenantName = 'TropicalTalent',
   workerLabel,
   payerLabel,
   workerPlural,
@@ -148,6 +148,8 @@ export function RoleStep({
 }: {
   value: SignUpRole | null;
   onChange: (r: SignUpRole) => void;
+  /** Kept for callers that pass the site name; the heading is now the
+   * translated Cubora onboarding question (see below). */
   tenantName?: string;
   workerLabel?: string;
   payerLabel?: string;
@@ -168,12 +170,17 @@ export function RoleStep({
     creative: workerLabel || ROLE_META.creative.fallbackLabel,
     brand: payerLabel || ROLE_META.brand.fallbackLabel,
   };
+  // Cubora onboarding (Phase 1): the question is what the person wants to
+  // do FIRST — consumer or provider — and the note says the other role can
+  // be activated later. One account holds both (see modules/identity/roles).
+  const tOnboarding = useTranslations('onboarding');
 
   const roles: SignUpRole[] = allowPayer ? ['creative', 'brand'] : ['creative'];
 
   return (
     <div className={stepClass}>
-      <h2 className={headingClass}>How will you use {tenantName}?</h2>
+      <h2 className={headingClass}>{tOnboarding('roleTitle')}</h2>
+      <p className='text-muted-foreground mx-auto max-w-sm text-xs'>{tOnboarding('roleNote')}</p>
       <div
         className={cn(
           'mx-auto grid max-w-sm gap-3',
@@ -469,7 +476,7 @@ function shareUrl(): string {
 
 export function SuccessStep({
   needsConfirmation,
-  tenantName = 'TropicalTalent',
+  tenantName = 'Cubora',
 }: {
   needsConfirmation: boolean;
   tenantName?: string;

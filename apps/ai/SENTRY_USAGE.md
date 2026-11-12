@@ -2,7 +2,13 @@
 
 ## Configuración
 
-Sentry se inicializa automáticamente al importar `app.core.sentry`. La inicialización ocurre cuando el módulo se carga por primera vez.
+Sentry se inicializa llamando a `init_sentry()` desde `create_application()` en `app/main.py`, leyendo la configuración de `app/core/config.py` (`Settings`):
+
+- `SENTRY_DSN` — DSN del proyecto Sentry. **Si está vacío o no se define, Sentry queda desactivado**: el SDK nunca se inicializa y ningún evento sale del proceso. Es el comportamiento por defecto en local/desarrollo.
+- `SENTRY_ENVIRONMENT` — entorno reportado (`development` por defecto; nunca `production` salvo que se configure explícitamente).
+- `SENTRY_TRACES_SAMPLE_RATE` — sample rate de performance (0.1 por defecto).
+
+Importar `app.core.sentry` no tiene efectos secundarios: la inicialización solo ocurre en `init_sentry()`. Nunca pongas un DSN real en el código ni en `.env.example` (solo placeholders vacíos).
 
 ## Uso en cualquier parte del código
 

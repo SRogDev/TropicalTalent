@@ -146,12 +146,14 @@ async def backfill_vectors(
         users = await _fetch_all_users()
     except Exception as exc:
         logger.error("Failed to fetch users for backfill", error=str(exc))
-        with sentry_sdk.push_scope() as scope:
+        # sentry_sdk.push_scope was deprecated in SDK 2.x (removed in the
+        # next major); new_scope is its replacement.
+        with sentry_sdk.new_scope() as scope:
             scope.set_extra("endpoint", "backfill_vectors")
             sentry_sdk.capture_exception(exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch users: {exc}",
+            detail="Failed to fetch users",
         )
 
     total = len(users)
@@ -217,3 +219,34 @@ async def backfill_vectors(
         "skipped": skipped,
         "errors": errors,
     }
+
+
+@router.post("/backfill-offer-vectors", status_code=status.HTTP_200_OK)
+async def backfill_offer_vectors(
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    dry_run: bool = Query(False, description="Count unindexed offers without indexing"),
+    limit: int = Query(50, description="Max offers to index in this run"),
+) -> dict:
+    """Vectorize published offers that have never been indexed.
+
+    Phase 3: offer-level Pinecone indexing (`search_indexed_at` is the
+    marker Phase 2 left on `tropical_offers`). Only `published` offers
+    are indexed; drafts never surface in buyer search.
+
+    Authentication: X-Admin-Key header required.
+    """
+    _verify_admin_key(x_admin_key)
+
+    from app.services.offer_indexing import index_unindexed_offers  # noqa: PLC0415
+
+    logger.info("Backfill offer vectors requested", dry_run=dry_run, limit=limit)
+    try:
+        summary = await index_unindexed_offers(limit=limit, dry_run=dry_run)
+    except Exception as exc:
+        logger.error("Failed to backfill offer vectors", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to backfill offer vectors",
+        )
+    logger.info("Backfill offer vectors complete", **summary)
+    return summary

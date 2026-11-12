@@ -1,25 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="TropicalTalent logo">
-  <!-- Minimalist mark: beach horizon, palm tree, sparkle for talent. Green palette on transparent. -->
-  <!-- sparkle / star for talent -->
-  <path d="M50 3 L52.2 8.8 L58 11 L52.2 13.2 L50 19 L47.8 13.2 L42 11 L47.8 8.8 Z" fill="#a3e635"/>
-  <!-- palm fronds -->
-  <g fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round">
-    <path d="M38 19 C 30 12, 22 12, 15 17"/>
-    <path d="M38 19 C 34 10, 28 7, 21 8"/>
-    <path d="M38 19 C 40 10, 46 6, 53 7"/>
-    <path d="M38 19 C 46 12, 54 12, 60 17"/>
-    <path d="M38 19 C 38 12, 38 9, 39 6"/>
-  </g>
-  <!-- trunk -->
-  <path d="M32 44 C 31 34, 33 25, 38 19" fill="none" stroke="#14532d" stroke-width="3.5" stroke-linecap="round"/>
-  <!-- coconuts -->
-  <circle cx="35.5" cy="21" r="2.2" fill="#14532d"/>
-  <circle cx="40" cy="22.5" r="2.2" fill="#14532d"/>
-  <!-- beach horizon -->
-  <line x1="8" y1="44" x2="56" y2="44" stroke="#bef264" stroke-width="2.5" stroke-linecap="round"/>
-  <!-- sea -->
-  <g fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round">
-    <path d="M10 51 q 4 -4, 8 0 t 8 0 t 8 0 t 8 0 t 8 0"/>
-    <path d="M16 58 q 4 -4, 8 0 t 8 0 t 8 0 t 8 0"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Cubora logo">
+  <defs>
+    <linearGradient id="cubora-brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14532d"/>
+      <stop offset="0.5" stop-color="#059669"/>
+      <stop offset="1" stop-color="#84cc16"/>
+    </linearGradient>
+  </defs>
+  <!-- Same mark as public/cubora-logo.svg: an open "C" closed by a lime
+       signal dot. Kept in sync by hand — if one changes, change the other. -->
+  <path d="M47 17 A21 21 0 1 0 47 47" fill="none" stroke="url(#cubora-brand)" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="47" cy="32" r="5.5" fill="#84cc16"/>
 </svg>

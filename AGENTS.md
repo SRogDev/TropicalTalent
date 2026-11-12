@@ -21,6 +21,6 @@ A public monorepo, licensed Elastic License 2.0. It is a **reference base** for 
 - **Frontend/UI:** `ui-ux-pro-max` is the design authority when UI work is done; run its design-system search first.
 - **Code:** `gentle-ai` discipline (ODD routing, TDD evidence, RDD self-review) and `karpathy-guidelines` (think before coding, simplicity first, surgical changes, goal-driven execution) apply to all coding work.
 
-## Known state (2026-11-11)
+## Known state (2026-11-12, after Phase 5)
 
-See `STATUS.md` and the root `README.md` "What is omitted / not working" section. In short: payments omitted, web and AI not wired together, Team Search disabled, AI auth gaps documented not fixed, AI test suite has pre-existing drift, geography still UK-flavoured, no i18n yet.
+See `STATUS.md` and the root `README.md` "What is omitted / not working" section. In short: payments omitted; web and AI wired for discovery + semantic search (live Pinecone/Gemini unverified); Team Search re-enabled with project creation disabled (crm_handoff); AI auth gaps closed in Phase 5 (JWT on search/insights/vectorize, QStash fail-closed); AI tests 136 passed, 0 failed; web tests 137/137; bilingual EN/ES via next-intl (admin console, legacy screens and server-action errors still English); geography still UK-flavoured; no live DB has ever existed — all RLS/migration validation is static. Remaining Medium gaps: proposal acceptance flags not DB-enforced (A-3), RLS policies without explicit `TO authenticated` (A-4) — both need a live DB to close.

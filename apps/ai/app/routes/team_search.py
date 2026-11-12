@@ -1,6 +1,19 @@
 """Team Search API router: POST /api/team-search
 
-Streams SSE events from the LangGraph Team Search multiagent system.
+Re-enabled in Phase 3 (Cubora) behind the same JWT auth + rate limit
+as the agent routes. Streams SSE events from the LangGraph Team Search
+multiagent system.
+
+Known limitation (decided in Phase 4, not hidden): the graph's
+`project_creator` and `persuasion_agent` nodes are DISABLED — they
+wrote to the legacy `projects` / `project_members` / `connections` /
+`messages` tables, which no web migration creates, and creating those
+tables would resurrect a second project model nothing in the web reads.
+Approval of a reviewed team now ends at the `crm_handoff` node
+(status `complete`, no Supabase writes): Cubora operations opens the
+negotiation in the Phase 4 CRM (migration 056) and coordinates the
+next steps. See docs/architecture/ai-orchestration.md §4. The route
+also writes `agent_conversations.mode` — added by migration 055.
 
 SSE event types:
   message           — text from any agent (business, persuasion)
@@ -247,7 +260,9 @@ async def team_search_endpoint(
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     except Exception as exc:
-        with sentry_sdk.push_scope() as scope:
+        # sentry-sdk 2.x removed push_scope(); new_scope() is its
+        # replacement (fixed on this re-enabled path in Phase 3).
+        with sentry_sdk.new_scope() as scope:
             scope.set_extra("endpoint", "team_search")
             scope.set_extra("user_id", current_user.get("sub"))
             scope.set_extra("message", payload.message)

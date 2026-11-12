@@ -1,8 +1,10 @@
-# TropicalTalent
+# Cubora — apps/web
 
 A marketplace web app connecting Cuban talent with the world — Cuban
 influencers with foreign audiences and clients, local producers with foreign
-clients, tech and marketing talent with the teams that need them.
+clients, tech and marketing talent with the teams that need them. The product
+brand is **Cubora** (tagline: "Born from ingenuity. Built through resilience.
+Made in Cuba."); the repository keeps the name TropicalTalent.
 
 **Status: reference base, not the final product.** This is a rebranded fusion
 of earlier marketplace work, kept as a clean starting point for the real
@@ -27,21 +29,26 @@ Other useful commands: `bun run typecheck`, `bun run lint`, `bun test`,
 
 ## Routes
 
+All pages live under `/[locale]` (`/en`, `/es`); bare paths redirect to
+their locale-prefixed form. One account holds the consumer and provider
+roles and switches between them from the sidebar (see
+`docs/product/user-workflows.md`).
+
 | Route                   | Who      | What                                                   |
 | ----------------------- | -------- | ------------------------------------------------------ |
-| `/`                     | public   | Landing page. The CTA creates a real account.          |
-| `/auth/sign-in`         | public   | Log in                                                 |
-| `/auth/reset`           | public   | Request a password reset                               |
-| `/auth/update-password` | public   | Set a new password                                     |
-| `/auth/callback`        | public   | OAuth / email-confirmation exchange                    |
-| `/create`               | brand    | Brief → crew → project                                 |
-| `/projects`             | brand    | Project grid                                           |
-| `/projects/[id]`        | both     | Workspace: channels, contracts, deliverables, settings |
-| `/talent`               | brand    | Discover, favourite, invite talent                     |
-| `/briefs`               | talent   | Public brief feed                                      |
-| `/jobs`                 | talent   | Roles held + applications sent                         |
-| `/profile/[username]`   | both     | Profile, inline-editable                               |
-| `/wallet`               | both     | Placeholder — payments are omitted in this build       |
+| `/[locale]`             | public   | Landing page. The CTA creates a real account.          |
+| `/[locale]/auth/sign-in`         | public   | Log in                                                 |
+| `/[locale]/auth/reset`           | public   | Request a password reset                               |
+| `/[locale]/auth/update-password` | public   | Set a new password                                     |
+| `/[locale]/auth/callback`        | public   | OAuth / email-confirmation exchange                    |
+| `/[locale]/create`               | consumer | Brief → crew → project                                 |
+| `/[locale]/projects`             | consumer | Project grid                                           |
+| `/[locale]/projects/[id]`        | both     | Workspace: channels, contracts, deliverables, settings |
+| `/[locale]/talent`               | consumer | Discover, favourite, invite talent                     |
+| `/[locale]/briefs`               | provider | Public brief feed                                      |
+| `/[locale]/jobs`                 | provider | Roles held + applications sent                         |
+| `/[locale]/profile/[username]`   | both     | Profile, inline-editable                               |
+| `/[locale]/wallet`               | both     | Placeholder — payments are omitted in this build       |
 | `/api/waitlist`         | public   | Preserved for external callers                         |
 | `/api/cron/project-checkins` | cron | Weekly project check-ins (bearer `CRON_SECRET`)   |
 | `/api/cron/retention`   | cron     | Retention job (bearer `CRON_SECRET`)                   |

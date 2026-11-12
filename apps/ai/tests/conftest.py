@@ -142,12 +142,61 @@ def mock_embeddings() -> AsyncMock:
 def valid_auth_token() -> str:
     """
     Provide a valid authentication token for testing.
-    
+
     Given: Tests need authentication
     When: A valid token is required
     Then: A test JWT token is provided
     """
     return "valid-test-jwt-token-12345"
+
+
+@pytest.fixture
+def auth_token() -> str:
+    """
+    Mint a REAL HS256 JWT the app's get_current_user dependency accepts.
+
+    Signed with the test SUPABASE_JWT_SECRET from this conftest, audience
+    "authenticated", subject "test-user-123". Use this (not
+    valid_auth_token, which is not a parseable JWT) for endpoint tests
+    that go through the real auth dependency.
+    """
+    import time
+
+    from jose import jwt
+
+    now = int(time.time())
+    return jwt.encode(
+        {
+            "sub": "test-user-123",
+            "aud": "authenticated",
+            "exp": now + 3600,
+            "iat": now,
+        },
+        os.environ["SUPABASE_JWT_SECRET"],
+        algorithm="HS256",
+    )
+
+
+@pytest.fixture
+def auth_headers(auth_token) -> dict:
+    """Authorization header carrying a real test JWT."""
+    return {"Authorization": f"Bearer {auth_token}"}
+
+
+@pytest.fixture(autouse=True)
+def _reset_in_process_rate_limit():
+    """
+    Clear the in-process rate-limit window between tests.
+
+    The fallback limiter is keyed by client IP ("testclient" for every
+    TestClient request), so without a reset the suite would share one
+    60/min budget and fail depending on test order/count.
+    """
+    from app.dependencies import rate_limiting
+
+    rate_limiting._requests.clear()
+    yield
+    rate_limiting._requests.clear()
 
 
 @pytest.fixture

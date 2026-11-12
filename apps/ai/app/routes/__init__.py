@@ -17,7 +17,7 @@ router = APIRouter()
 # Define routers to load with their module paths
 ROUTERS_TO_LOAD = [
     ("agent", "app.routes.agent", "/api/agent"),
-   # ("team_search", "app.routes.team_search", "/api/team-search"), # disabled for now 
+    ("team_search", "app.routes.team_search", "/api/team-search"),
     ("webhooks", "app.routes.webhooks", "/api/webhooks"),
     ("health", "app.routes.health", "/health"),
     ("search", "app.routes.internals.search", "/search (internal)"),

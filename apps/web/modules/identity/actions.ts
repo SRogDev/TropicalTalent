@@ -13,6 +13,7 @@ import { capabilitiesForSignup } from '@/modules/tenancy/presets';
 import type { TenantCapabilities } from '@/modules/tenancy/types';
 import { TERMS_VERSION } from '@/lib/legal';
 import { completeProfileSchema, signUpSchema } from './schema';
+import { activateRole, cuboraRolesFor, type CuboraRole } from './roles';
 import { getViewer, pendingTenantInvite } from './queries';
 
 /**
@@ -297,6 +298,78 @@ export async function joinTenantWithInviteAction(): Promise<ActionResult<{ next:
       tenant.features,
     ),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Cubora roles: activate the other side later
+// ---------------------------------------------------------------------------
+
+/**
+ * Activates the other Cubora role on the signed-in account.
+ *
+ * One account can be both consumer and provider (plan §6). Onboarding asks
+ * what the user wants to do FIRST; this is the "later" half — a consumer
+ * becomes a provider, or the reverse, from their profile.
+ *
+ * Additive only: it sets the requested capability on the tenant membership
+ * row and never clears one, so it cannot lock an account out of a side it
+ * already had. The `users.role` column follows only when the account ends
+ * up holding exactly one side — with both sides it keeps whichever role the
+ * account already had, which is the classic shape (see writeProfile()).
+ * A non-member cannot activate anything: creating a membership here would
+ * grant workspace access without an invite.
+ */
+export async function activateRoleAction(
+  form: FormData,
+): Promise<ActionResult<{ role: CuboraRole }>> {
+  const viewer = await getViewer();
+  if (!viewer) return fail('You need to be signed in.');
+  if (!viewer.belongsToTenant) {
+    return fail('You are not a member of this workspace yet.');
+  }
+
+  const role = String(form.get('role') ?? '');
+  if (role !== 'consumer' && role !== 'provider') return fail('Choose a role to activate.');
+
+  const tenant = await getTenant();
+  const admin = adminDb();
+
+  const { data: membership } = await admin
+    .from('tropical_tenant_members')
+    .select('capabilities')
+    .eq('tenant_id', tenant.id)
+    .eq('user_id', viewer.id)
+    .maybeSingle();
+
+  const current = normaliseCapabilities(
+    (membership as { capabilities: unknown } | null)?.capabilities,
+  );
+  const next = activateRole({ canBrand: current.brand, isCreative: current.work }, role);
+
+  const { error } = await admin.from('tropical_tenant_members').upsert(
+    {
+      tenant_id: tenant.id,
+      user_id: viewer.id,
+      role: viewer.tenantRole ?? 'member',
+      capabilities: { brand: next.canBrand, work: next.isCreative },
+    },
+    { onConflict: 'tenant_id,user_id' },
+  );
+  if (error) return fail(error.message);
+
+  // Single-side accounts keep users.role in step with their capabilities —
+  // loadTalent() filters on it, so a provider whose role still reads 'brand'
+  // would be invisible to every search.
+  const held = cuboraRolesFor(next);
+  if (held.length === 1) {
+    const legacyRole = held[0] === 'consumer' ? 'brand' : 'creative';
+    if (legacyRole !== viewer.role && !viewer.isSuperAdmin) {
+      await admin.from('users').update({ role: legacyRole }).eq('id', viewer.id);
+    }
+  }
+
+  revalidatePath('/', 'layout');
+  return ok({ role });
 }
 
 // ---------------------------------------------------------------------------
@@ -1446,7 +1519,9 @@ export async function exportMyDataAction(): Promise<ActionResult<{ json: string 
     mine(admin.from('tropical_channel_messages').select('*').eq('sender_id', id)),
     mine(admin.from('tropical_user_balances').select('*').eq('user_id', id).maybeSingle()),
     mine(admin.from('tropical_balance_transactions').select('*').eq('user_id', id)),
-    mine(admin.from('tropical_notification_preferences').select('*').eq('user_id', id).maybeSingle()),
+    mine(
+      admin.from('tropical_notification_preferences').select('*').eq('user_id', id).maybeSingle(),
+    ),
     mine(admin.from('tropical_referrals').select('*').eq('referred_id', id)),
     mine(admin.from('tropical_complaints').select('*').eq('raised_by', id)),
     mine(admin.from('tropical_terms_acceptances').select('*').eq('user_id', id)),

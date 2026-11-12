@@ -55,7 +55,7 @@ export function ReferralField({
   value,
   onChange,
   prefilled,
-  platformName = 'TropicalTalent',
+  platformName = 'Cubora',
 }: {
   value: string;
   onChange: (v: string) => void;

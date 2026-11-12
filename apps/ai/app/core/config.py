@@ -126,6 +126,18 @@ class Settings(BaseSettings):
         description="QStash next signing key (used during key rotation).",
     )
 
+    # DEV ONLY — never enable in production. When True AND no QStash signing
+    # keys are configured, /api/webhooks/vectorize accepts unsigned
+    # deliveries (local development without a QStash project). The flag has
+    # NO effect when SENTRY_ENVIRONMENT=production: unsigned requests are
+    # always rejected there. Without keys and without this flag, unsigned
+    # requests are rejected everywhere (fail closed). See
+    # app/routes/webhooks.py::_verify_qstash_signature.
+    qstash_allow_unsigned: bool = Field(
+        default=False,
+        description="DEV ONLY: allow unsigned QStash webhook deliveries when no signing keys are configured. Ignored in production.",
+    )
+
     # ========================================================================
     # Monitoring and Error Tracking
     # ========================================================================

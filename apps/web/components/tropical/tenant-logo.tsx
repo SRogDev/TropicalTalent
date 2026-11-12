@@ -3,10 +3,10 @@ import Image from 'next/image';
 /**
  * The tenant's mark.
  *
- * Replaces seven hardcoded `<Image src='/tropicaltalent-logo.svg' alt='TropicalTalent'>` uses
+ * Replaces seven hardcoded `<Image src='/cubora-logo.svg' alt='Cubora'>` uses
  * across the shell, the landing page, the auth screens and not-found.
  *
- * A tenant that has not uploaded a logo falls back to TropicalTalent's own file, which
+ * A tenant that has not uploaded a logo falls back to Cubora's own file, which
  * is right for the classic tenant and acceptable-but-visible for a
  * half-configured white-label: better a placeholder someone notices than a
  * broken image, and the tenant-creation console requires one anyway.
@@ -30,7 +30,7 @@ export function TenantLogo({
   priority?: boolean;
   className?: string;
 }) {
-  const src = usableLogo(logoUrl) ?? '/tropicaltalent-logo.svg';
+  const src = usableLogo(logoUrl) ?? '/cubora-logo.svg';
 
   return (
     <Image
@@ -48,7 +48,7 @@ export function TenantLogo({
       // A tenant logo is one small file served from Storage; Next's optimiser
       // would add a round trip per variant for no saving on an SVG or a
       // already-sized PNG.
-      unoptimized={src !== '/tropicaltalent-logo.svg'}
+      unoptimized={src !== '/cubora-logo.svg'}
     />
   );
 }

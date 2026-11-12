@@ -35,7 +35,7 @@ export function ExportDataPanel({ username }: { username: string | null }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `tropicaltalent-data-${username || 'account'}-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `cubora-data-${username || 'account'}-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Made in Cuba seal">
+  <!-- Made in Cuba seal (Phase 1). Minimal and language-neutral: the Cubora
+       "C" mark inside a double ring. The translated label is rendered by the
+       MadeInCubaBadge component next to this image, never inside it.
+       Origin VERIFICATION is Phase 2 — this file is the seal artwork only,
+       and it must never be shown on an offer whose origin is unverified. -->
+  <circle cx="60" cy="60" r="56" fill="none" stroke="#14532d" stroke-width="3"/>
+  <circle cx="60" cy="60" r="46" fill="none" stroke="#059669" stroke-width="1.5"/>
+  <text x="60" y="31" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="9.5" font-weight="600" letter-spacing="1.5" fill="#14532d">MADE IN CUBA</text>
+  <g transform="translate(60 63) scale(0.62)">
+    <defs>
+      <linearGradient id="cubora-seal-brand" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#14532d"/>
+        <stop offset="0.5" stop-color="#059669"/>
+        <stop offset="1" stop-color="#84cc16"/>
+      </linearGradient>
+    </defs>
+    <path d="M15 -15 A21 21 0 1 0 15 15" fill="none" stroke="url(#cubora-seal-brand)" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="15" cy="0" r="5.5" fill="#84cc16"/>
+  </g>
+  <text x="60" y="101" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="9.5" font-weight="600" letter-spacing="3" fill="#14532d">CUBORA</text>
+</svg>

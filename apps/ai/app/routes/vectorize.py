@@ -67,6 +67,21 @@ async def vectorize(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="user_id is required"
             )
 
+        # Ownership: the user_id being vectorized must match the JWT subject.
+        # Any authenticated user could otherwise overwrite anyone else's
+        # Pinecone profile (the DELETE endpoint already enforces this).
+        authenticated_user_id = current_user.get("sub")
+        if authenticated_user_id != user_id:
+            logger.warning(
+                "Unauthorized vectorize attempt",
+                requested_user_id=user_id,
+                authenticated_user=authenticated_user_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot vectorize another user's profile",
+            )
+
         if not profile_json:
             logger.warning("Missing profile_json in vectorize request", user_id=user_id)
             raise HTTPException(
@@ -80,6 +95,8 @@ async def vectorize(
             profile = ProfileData(**profile_dict)
             logger.debug("Profile JSON parsed successfully", user_id=user_id)
         except json.JSONDecodeError as e:
+            # Log the parse detail server-side; the client gets a generic
+            # message (the previous detail echoed the parser error).
             logger.error(
                 "Invalid JSON in profile_json",
                 user_id=user_id,
@@ -88,7 +105,7 @@ async def vectorize(
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid profile JSON: {str(e)}",
+                detail="Invalid profile JSON",
             )
         except (ValueError, TypeError) as e:
             logger.error(
@@ -99,7 +116,7 @@ async def vectorize(
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid profile data: {str(e)}",
+                detail="Invalid profile data",
             )
 
         # Create request object
@@ -145,7 +162,9 @@ async def vectorize(
             error=str(e),
             error_type=type(e).__name__,
         )
-        with sentry_sdk.push_scope() as scope:
+        # sentry_sdk.push_scope was deprecated in SDK 2.x (removed in the
+        # next major); new_scope is its replacement.
+        with sentry_sdk.new_scope() as scope:
             scope.set_extra("endpoint", "vectorize")
             scope.set_extra("user_id", user_id)
             scope.set_extra("authenticated_user", current_user.get("sub"))
@@ -203,7 +222,7 @@ async def delete_vector(
             user_id=user_id,
             error=str(e),
         )
-        with sentry_sdk.push_scope() as scope:
+        with sentry_sdk.new_scope() as scope:
             scope.set_extra("endpoint", "delete_vector")
             scope.set_extra("user_id", user_id)
             sentry_sdk.capture_exception(e)

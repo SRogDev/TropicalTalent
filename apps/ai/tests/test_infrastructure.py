@@ -10,7 +10,7 @@ All tests verify security and performance-critical functionality.
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import HTTPException, status
 
 
@@ -25,14 +25,26 @@ class TestRateLimiting:
         When: Multiple requests are made
         Then: All requests are allowed
         """
-        # Given
+        # Given — rate_limit requires the request (per-IP key) since the
+        # Redis/in-process implementation landed; build a minimal one.
+        from fastapi import Request
+
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/search",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+        }
+        request = Request(scope)
+
         from app.dependencies.rate_limiting import rate_limit
-        
+
         # When / Then
         try:
             # Simulate multiple requests under limit
             for _ in range(5):
-                await rate_limit()
+                await rate_limit(request)
             assert True
         except HTTPException:
             pytest.fail("Rate limit should not trigger for requests under threshold")
@@ -149,7 +161,7 @@ class TestErrorHandling:
     """Tests for error handling and logging."""
 
     @pytest.mark.asyncio
-    async def test_http_exceptions_are_properly_formatted(self, client):
+    async def test_http_exceptions_are_properly_formatted(self, client, auth_headers):
         """
         Given: An endpoint raises an HTTPException
         When: The error is returned to client
@@ -157,32 +169,36 @@ class TestErrorHandling:
         """
         # Given / When
         response = client.get(
-            "/internals/search",
-            params={"user_id": "test", "query": "ab"}  # Too short
+            "/search",
+            params={"query": "ab"},  # Too short
+            headers=auth_headers,
         )
-        
+
         # Then
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
         assert "detail" in data
 
     @pytest.mark.asyncio
-    async def test_unexpected_errors_return_500(self, client):
+    async def test_unexpected_errors_return_500(self, client, auth_headers):
         """
         Given: An endpoint encounters an unexpected error
         When: The error occurs during request processing
         Then: 500 Internal Server Error is returned
         """
-        # Given
-        with patch('app.services.search.search_users') as mock_search:
-            mock_search.side_effect = Exception("Unexpected database error")
-            
+        # Given — patch the route module's own binding, not the service
+        # module's (the route imported search_users directly).
+        with patch(
+            "app.routes.internals.search.search_users",
+            new=AsyncMock(side_effect=Exception("Unexpected database error")),
+        ):
             # When
             response = client.get(
-                "/internals/search",
-                params={"user_id": "test", "query": "valid query"}
+                "/search",
+                params={"query": "valid query"},
+                headers=auth_headers,
             )
-            
+
             # Then
             assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
 
@@ -223,19 +239,23 @@ class TestSentryIntegration:
         When: The exception is caught
         Then: Exception is sent to Sentry with context
         """
-        # Given
+        # Given — patch the route module's own binding (the route imported
+        # search_users directly; patching app.services.search.search_users
+        # does NOT intercept the route's call and the real service runs
+        # against the network — that is why this test used to hang).
         with patch('sentry_sdk.capture_exception') as mock_capture:
-            with patch('app.services.search.search_users') as mock_search:
-                mock_search.side_effect = Exception("Test error")
-                
+            with patch(
+                'app.routes.internals.search.search_users',
+                new=AsyncMock(side_effect=Exception("Test error")),
+            ):
                 from app.routes.internals.search import search
-                
+
                 # When
                 try:
-                    await search(user_id="test", query="valid query")
+                    await search(query="valid query", current_user={"sub": "test"})
                 except HTTPException:
                     pass
-                
+
                 # Then
                 mock_capture.assert_called()
 
@@ -329,17 +349,21 @@ class TestDatabaseConnections:
         Given: Supabase credentials are configured
         When: Application attempts to connect
         Then: Connection is successful
+
+        NOTE: get_supabase_client moved from app.dependencies.auth to
+        app.core.database; initialize() is stubbed out (network) and the
+        factory is checked instead.
         """
         # Given
-        from app.dependencies.auth import get_supabase_client
-        
+        from app.core.database import SupabaseClient, get_supabase_client
+
         # When
-        with patch('app.dependencies.auth.create_client') as mock_create:
-            mock_create.return_value = MagicMock()
-            client = get_supabase_client()
-            
+        with patch.object(SupabaseClient, "initialize", new=AsyncMock()):
+            client = await get_supabase_client()
+
             # Then
             assert client is not None
+            assert isinstance(client, SupabaseClient)
 
     @pytest.mark.asyncio
     async def test_connection_errors_are_handled_gracefully(self):

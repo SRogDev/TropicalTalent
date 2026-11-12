@@ -49,14 +49,19 @@ async def agent_endpoint(
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     except Exception as e:  # pylint: disable=broad-except
-        # Catch any unexpected errors during agent streaming
-        with sentry_sdk.push_scope() as scope:
+        # Catch any unexpected errors during agent streaming.
+        # sentry_sdk 2.x removed push_scope(); new_scope() is its
+        # replacement (Phase 3 fixed this on the migrated agent path;
+        # the remaining push_scope sites are a Phase 5 item).
+        with sentry_sdk.new_scope() as scope:
             scope.set_extra("endpoint", "agent")
             scope.set_extra("authenticated_user", current_user.get("sub"))
             scope.set_extra("message", payload.message)
             scope.set_extra("conversation_id", payload.conversation_id)
             sentry_sdk.capture_exception(e)
-        raise HTTPException(status_code=500, detail=str(e))
+        # Log the detail server-side; the client only gets a generic message.
+        logger.error("Unexpected error in agent endpoint", error=str(e))
+        raise HTTPException(status_code=500, detail="Agent request failed")
 
 
 @router.post("/agent/conversations", response_model=AgentConversationResponse)

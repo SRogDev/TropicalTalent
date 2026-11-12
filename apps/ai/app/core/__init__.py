@@ -39,7 +39,9 @@ def get_vector_store():
 def capture_exception(exception, extra_data=None):
     """Capture exception with Sentry and optional extra data."""
     if extra_data:
-        with sentry_sdk.push_scope() as scope:
+        # sentry_sdk.push_scope was deprecated in SDK 2.x (removed in the
+        # next major); new_scope is its replacement.
+        with sentry_sdk.new_scope() as scope:
             for key, value in extra_data.items():
                 scope.set_extra(key, value)
             sentry_sdk.capture_exception(exception)

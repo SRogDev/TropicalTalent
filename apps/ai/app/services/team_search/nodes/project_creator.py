@@ -1,13 +1,15 @@
 """Project Creator node for the Team Search LangGraph graph.
 
-Responsibilities:
-- INSERT a new row into the `projects` table
-- INSERT the initiating user as the brand/owner in `project_members`
-- Store the returned project_id in state
-- Transition status → 'inviting'
+DISABLED in Phase 4 (2026-11-12) — kept in the tree as history, not
+wired into the graph (see `graph.py: crm_handoff_node`).
 
-Only runs in 'create' mode. In 'update' mode the graph routes directly
-from 'reviewing' → 'inviting', skipping this node entirely.
+It used to INSERT a new row into the legacy `projects` table and the
+initiating user as the brand/owner in `project_members`. Those tables
+are created by no web migration, and creating them would resurrect a
+second project model that nothing in the web reads. The Cubora
+commercial operation is the negotiation, owned by the Phase 4 CRM
+(migration 056); an approved team ends at the `crm_handoff` node
+instead, and operations opens the negotiation.
 """
 
 from __future__ import annotations

@@ -119,6 +119,15 @@ export function ProjectWorkspaceView({
    * Whether the group channel is open, and whether contracts are still
    * negotiable — the two questions a pot answers with "has escrow been paid".
    *
+   * Phase 4: for a Cubora operation the "paid" side is now Cubora
+   * operations activating the workspace (negotiation accepted →
+   * activateProjectAction, migration 056), not a payment event — there
+   * is no payment rail in the MVP, and escrow funding is stubbed to
+   * always refuse, so nothing here can unlock on escrow alone.
+   * `isEscrowPaid` is still the predicate (it is true when the project
+   * status is active/completed), but the transition that makes it true
+   * is the operations decision, recorded in the negotiation's audit trail.
+   *
    * A retainer project is 'active' from creation (029), so isEscrowPaid is
    * true for it before anybody has paid anything. Left alone, that opened the
    * group channel on day zero and locked the contract in the same breath, which

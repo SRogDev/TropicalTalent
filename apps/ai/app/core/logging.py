@@ -85,24 +85,13 @@ def configure_logging() -> FilteringBoundLogger:
 
 
 def get_logger(name: str) -> FilteringBoundLogger:
-    """from fastapi import FastAPI
-    import sentry_sdk
+    """Get a named logger instance.
 
-    sentry_sdk.init(
-        dsn="https://bf020ddd8d414e8e1ba71e493bec488e@o4510276306468864.ingest.us.sentry.io/4510295934173184",
-        # Add data like request headers and IP for users,
-        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-        send_default_pii=True,
-    )
+    Args:
+        name: Logger name (typically module name)
 
-    app = FastAPI()
-        Get a named logger instance.
-
-        Args:
-            name: Logger name (typically module name)
-
-        Returns:
-            FilteringBoundLogger: Named logger instance
+    Returns:
+        FilteringBoundLogger: Named logger instance
     """
     return structlog.get_logger(name)
 

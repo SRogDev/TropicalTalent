@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Cubora logo">
+  <defs>
+    <linearGradient id="cubora-brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14532d"/>
+      <stop offset="0.5" stop-color="#059669"/>
+      <stop offset="1" stop-color="#84cc16"/>
+    </linearGradient>
+  </defs>
+  <!-- Cubora mark (Phase 1 rework of the previous palm/beach logo: no tourist
+       imagery). An open "C" — a connection left open on the right — closed by
+       a single lime signal dot: the buyer on one side, Cuba on the other,
+       Cubora in between. Light-green brand gradient: deep green → emerald → lime. -->
+  <path d="M47 17 A21 21 0 1 0 47 47" fill="none" stroke="url(#cubora-brand)" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="47" cy="32" r="5.5" fill="#84cc16"/>
+</svg>

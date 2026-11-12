@@ -1,11 +1,16 @@
 """Persuasion Agent node for the Team Search LangGraph graph.
 
-Responsibilities:
-- Write personalised invitation text for each selected team member using Gemini
-- Ensure a connection exists between the brand user and each invitee
-  (creates one in 'pending' status if absent)
-- INSERT a message row with type='project_request' and JSONB content
-- Transition status → 'complete'
+DISABLED in Phase 4 (2026-11-12) — kept in the tree as history, not
+wired into the graph (see `graph.py: crm_handoff_node`).
+
+It used to write personalised invitation text per team member, ensure
+a connection in the legacy `connections` table, and INSERT a
+`project_request` row in the legacy `messages` table. Those tables are
+created by no web migration, and creating them would resurrect a
+second project/connection model that nothing in the web reads. The
+Cubora commercial operation is the negotiation, owned by the Phase 4
+CRM (migration 056); an approved team ends at the `crm_handoff` node
+instead, and operations coordinates invitations through Cubora.
 """
 
 from __future__ import annotations

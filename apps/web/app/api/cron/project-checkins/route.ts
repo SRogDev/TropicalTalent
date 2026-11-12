@@ -36,7 +36,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     )
     .eq('status', 'active');
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('project-checkins: failed to load active projects:', error.message);
+    return NextResponse.json({ error: 'Could not load active projects.' }, { status: 500 });
+  }
 
   let emailed = 0;
 

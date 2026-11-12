@@ -1,6 +1,6 @@
 """Health check endpoint for monitoring and load balancers."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter
 
 router = APIRouter(
@@ -13,7 +13,7 @@ router = APIRouter(
 async def health_check():
     """
     Basic health check endpoint for monitoring and load balancers.
-    
+
     Returns service status, version, and timestamp.
     No authentication required for infrastructure monitoring.
     """
@@ -21,5 +21,5 @@ async def health_check():
         "status": "ok",
         "service": "ai-service",
         "version": "1.0.0",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }

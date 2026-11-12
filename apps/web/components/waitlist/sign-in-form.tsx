@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { Link, useRouter } from '@/i18n/navigation';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { resendConfirmationAction, signInAction } from '@/modules/identity/actions';
 
 export function SignInForm({ next }: { next: string }) {
+  const t = useTranslations('auth');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState('');
@@ -72,7 +73,7 @@ export function SignInForm({ next }: { next: string }) {
   return (
     <form onSubmit={onSubmit} className='mt-4 space-y-4'>
       <div className='space-y-1'>
-        <Label htmlFor='email'>Email</Label>
+        <Label htmlFor='email'>{t('email')}</Label>
         <Input
           id='email'
           name='email'
@@ -87,12 +88,12 @@ export function SignInForm({ next }: { next: string }) {
 
       <div className='space-y-1'>
         <div className='flex items-center justify-between'>
-          <Label htmlFor='password'>Password</Label>
+          <Label htmlFor='password'>{t('password')}</Label>
           <Link
             href='/auth/reset'
             className='text-muted-foreground text-xs underline underline-offset-2'
           >
-            Forgot?
+            {t('forgotPassword')}
           </Link>
         </div>
         <Input
@@ -138,10 +139,10 @@ export function SignInForm({ next }: { next: string }) {
       >
         {pending ? (
           <span className='flex items-center gap-2'>
-            <Loader2 className='h-4 w-4 animate-spin' /> Logging in…
+            <Loader2 className='h-4 w-4 animate-spin' /> {t('signingIn')}
           </span>
         ) : (
-          'Log in'
+          t('signIn')
         )}
       </Button>
     </form>
